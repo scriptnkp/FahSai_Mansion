@@ -45,7 +45,7 @@ function renderHistory() {
       <td>${bill.paid ? (bill.paidDate || '-') : '-'}</td>
       <td>
         ${!bill.paid
-          ? `<button class="btn btn-success btn-sm" onclick="markPaid('${roomId}');renderHistory()">รับเงิน</button>
+          ? `<button class="btn btn-success btn-sm" onclick="markPaid('${roomId}').then(() => renderHistory())">รับเงิน</button>
              <button class="btn btn-outline btn-sm" onclick="sendOverdueNotice('${roomId}')">📤 TG</button>`
           : `<button class="btn btn-outline btn-sm" onclick="viewBillDetail('${roomId}','${mk}')">👁 ดูบิล</button>`
         }

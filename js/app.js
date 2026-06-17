@@ -1,5 +1,11 @@
 // ── Config ──
 const CFG = {
+  // URLs & Tokens
+  SUPABASE_URL: 'https://iifmnisoxfbjyhcgabsg.supabase.co',
+  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpZm1uaXNveGZianloY2dhYnNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2Nzg0NDYsImV4cCI6MjA5NzI1NDQ0Nn0.C58rM5eeIquTrJ4amI1x0_Bp3Ln0zzKjvZZh98qSGb4',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbzWEQ8j9QCfmKV8SkrIVRFZ7lIwACCCoa0zLPeZqXOr6yuQKa5dUKM1W9841DB9XbzrGw/exec',
+  
+  // Mansion Config (สามารถดึงจาก LocalStorage ตามหน้าตั้งค่าได้)
   ROOMS: [...Array(10).keys()].map(i=>`10${i+1}`).concat([...Array(10).keys()].map(i=>`20${i+1}`)),
   RENT: 3500,
   DEPOSIT: 5000,
@@ -12,43 +18,175 @@ const CFG = {
   MANSION_NAME: 'ฟ้าใสแมนชั่น',
   ADDRESS: '1059 ซ.ประชาสามัคคี 7 ถ.ประชาสามัคคี ต.สว่างแดนดิน อ.สว่างแดนดิน จ.สกลนคร 47120',
   PHONE: '099-040-8668',
-  TG_TOKEN: localStorage.getItem('tg_token') || '',
-  TG_CHAT: localStorage.getItem('tg_chat') || '',
-  SHEET_URL: localStorage.getItem('sheet_url') || '',
 };
+
+// ── Supabase Init ──
+const supabase = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
 
 // ── State ──
 const STATE = {
   currentPage: 'dashboard',
   selectedRoom: null,
-  bills: JSON.parse(localStorage.getItem('bills') || '{}'),
-  tenants: JSON.parse(localStorage.getItem('tenants') || '{}'),
-  payments: JSON.parse(localStorage.getItem('payments') || '[]'),
+  bills: {},     // จะโหลดจาก Supabase
+  tenants: {},   // จะโหลดจาก Supabase
+  payments: []   
 };
 
-// ── Persistence ──
-function saveState() {
+// ── Load Data (Supabase) ──
+async function loadSupabaseData() {
+  try {
+    // โหลดผู้เช่า
+    const { data: tenantsData, error: errT } = await supabase.from('tenants').select('*');
+    if(errT) throw errT;
+    if(tenantsData) {
+      STATE.tenants = {};
+      tenantsData.forEach(t => {
+        STATE.tenants[t.room_id] = {
+          name: t.name, phone: t.phone, idNum: t.id_card, 
+          moveIn: t.move_in_date, active: t.active, idCardImage: t.id_card_image_url
+        };
+      });
+    }
+
+    // โหลดบิล
+    const { data: billsData, error: errB } = await supabase.from('bills').select('*');
+    if(errB) throw errB;
+    if(billsData) {
+      STATE.bills = {};
+      billsData.forEach(b => {
+        STATE.bills[`${b.room_id}-${b.month_key}`] = {
+          roomId: b.room_id, month: b.month_key,
+          elecUnits: b.elec_units, waterUnits: b.water_units,
+          elecAmt: b.elec_amt, waterAmt: b.water_amt,
+          lateAmt: b.late_amt, total: b.total_amount,
+          paid: b.is_paid, paidDate: b.paid_date
+        };
+      });
+    }
+  } catch (e) {
+    console.error("Supabase Load Error:", e);
+    toast('ดึงข้อมูลจากฐานข้อมูลไม่สำเร็จ', 'error');
+  }
+}
+
+// ── Persistence & Supabase Sync ──
+async function saveState() {
+  // บันทึกลง Local ไว้เพื่อความลื่นไหลของ UI
   localStorage.setItem('bills', JSON.stringify(STATE.bills));
   localStorage.setItem('tenants', JSON.stringify(STATE.tenants));
-  localStorage.setItem('payments', JSON.stringify(STATE.payments));
+
+  // อัปเดตขึ้น Supabase แบบ Background (Upsert)
+  try {
+    const tenantsPayload = Object.entries(STATE.tenants).map(([roomId, t]) => ({
+      room_id: roomId, name: t.name, phone: t.phone, id_card: t.idNum,
+      move_in_date: t.moveIn, active: t.active, id_card_image_url: t.idCardImage || null
+    }));
+    if(tenantsPayload.length > 0) {
+      await supabase.from('tenants').upsert(tenantsPayload, { onConflict: 'room_id' });
+    }
+
+    const billsPayload = Object.entries(STATE.bills).map(([key, b]) => {
+      const [roomId, y, m] = key.split('-');
+      return {
+        room_id: roomId, month_key: `${y}-${m}`,
+        elec_units: b.elecUnits || 0, elec_amt: b.elecAmt || 0,
+        water_units: b.waterUnits || 0, water_amt: b.waterAmt || 0,
+        late_amt: b.lateAmt || 0, total_amount: b.total || 0,
+        is_paid: b.paid || false, paid_date: b.paidDate || null
+      };
+    });
+    if(billsPayload.length > 0) {
+      await supabase.from('bills').upsert(billsPayload, { onConflict: 'room_id,month_key' });
+    }
+  } catch (e) {
+    console.error("Supabase Sync Failed:", e);
+  }
+}
+
+// ── Google Apps Script API (Upload & Telegram) ──
+async function uploadIdCardImage(roomId, fileInputId) {
+  const file = document.getElementById(fileInputId).files[0];
+  if(!file) return null;
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        toast('กำลังอัปโหลดรูปลง Google Drive...', 'default', 5000);
+        const res = await fetch(CFG.GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'saveIdCard', roomId: roomId, imageBase64: reader.result })
+        });
+        const data = await res.json();
+        if(data.ok) {
+          toast('อัปโหลดไฟล์สำเร็จ', 'success');
+          resolve(data.fileUrl);
+        } else resolve(null);
+      } catch(e) {
+        console.error(e);
+        toast('อัปโหลดล้มเหลว', 'error');
+        resolve(null);
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function sendTelegram(msg) {
+  const token = localStorage.getItem('tg_token');
+  const chatId = localStorage.getItem('tg_chat');
+  if (!token || !chatId) { toast('กรุณาตั้งค่า Telegram ก่อน', 'warning'); return false; }
+  
+  try {
+    const res = await fetch(CFG.GAS_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'notifyTelegram', tgToken: token, tgChatId: chatId, message: msg })
+    });
+    const data = await res.json();
+    if (data.ok) { toast('ส่ง Telegram สำเร็จ ✓', 'success'); return true; }
+    else { toast('Telegram Error', 'error'); return false; }
+  } catch(e) {
+    toast('ไม่สามารถส่ง Telegram ได้', 'error'); return false;
+  }
+}
+
+// ── Overridden Dashboard Function (Add Tenant with File Upload) ──
+async function submitAddTenantWithImage() {
+  const roomId = document.getElementById('add-tenant-room').value;
+  const name   = document.getElementById('add-tenant-name').value.trim();
+  const phone  = document.getElementById('add-tenant-phone').value.trim();
+  const idNum  = document.getElementById('add-tenant-id').value.trim();
+  const moveIn = document.getElementById('add-tenant-movein').value;
+
+  if (!name) { toast('กรุณากรอกชื่อ', 'error'); return; }
+
+  // แสดงสถานะโหลด
+  const btn = document.querySelector('button[onclick="submitAddTenantWithImage()"]');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังบันทึก...';
+
+  // อัปโหลดรูปไป GAS
+  let idCardUrl = await uploadIdCardImage(roomId, 'add-tenant-id-img');
+
+  STATE.tenants[roomId] = { name, phone, idNum, moveIn, active: true, idCardImage: idCardUrl };
+  await saveState(); // บันทึก Supabase
+
+  closeModal('modal-add-tenant');
+  toast(`เพิ่มผู้เช่าห้อง ${roomId} สำเร็จ`, 'success');
+  renderDashboard();
+  selectRoom(roomId);
+
+  btn.disabled = false;
+  btn.textContent = origText;
 }
 
 // ── Utils ──
-function fmt(n) {
-  return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-function fmtInt(n) {
-  return Number(n).toLocaleString('th-TH');
-}
-function today() {
-  return new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
-}
-function isoDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-function monthKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
-}
+function fmt(n) { return Number(n).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtInt(n) { return Number(n).toLocaleString('th-TH'); }
+function today() { return new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }); }
+function isoDate() { return new Date().toISOString().slice(0, 10); }
+function monthKey(date = new Date()) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`; }
 function thaiMonth(key) {
   const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   const [y, m] = key.split('-');
@@ -77,7 +215,6 @@ function getRoomStatus(roomId) {
   const bill = STATE.bills[`${roomId}-${mk}`];
   const d = dayOfMonth();
   if (!bill) {
-    // ยังไม่บันทึกบิลเดือนนี้ — ใช้กำหนดเวลาเดียวกับบิลที่ค้างชำระ
     if (d > CFG.CUT_DAY) return 'overdue';
     if (d > CFG.DUE_DAY) return 'warning';
     return 'occupied';
@@ -87,11 +224,9 @@ function getRoomStatus(roomId) {
   if (d > CFG.DUE_DAY) return 'warning';
   return 'occupied';
 }
-function getRoomStatusLabel(s) {
-  return { occupied: 'ปกติ', vacant: 'ว่าง', overdue: 'ค้างชำระ', warning: 'เกินกำหนด' }[s] || s;
-}
+function getRoomStatusLabel(s) { return { occupied: 'ปกติ', vacant: 'ว่าง', overdue: 'ค้างชำระ', warning: 'เกินกำหนด' }[s] || s; }
 
-// ── Toast ──
+// ── UI Helpers ──
 function toast(msg, type = 'default', dur = 3000) {
   const el = document.createElement('div');
   el.className = `toast ${type}`;
@@ -101,7 +236,6 @@ function toast(msg, type = 'default', dur = 3000) {
   setTimeout(() => el.remove(), dur);
 }
 
-// ── Navigation ──
 function navigate(page) {
   STATE.currentPage = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -111,104 +245,17 @@ function navigate(page) {
     n.classList.toggle('active', n.dataset.page === page);
   });
   document.querySelector('.topbar-title').textContent = {
-    dashboard: '📊 ภาพรวมหอพัก',
-    form: '📝 บันทึกมิเตอร์',
-    report: '📄 รายงาน',
-    history: '🕐 ประวัติ',
-    settings: '⚙️ ตั้งค่า',
+    dashboard: '📊 ภาพรวมหอพัก', form: '📝 บันทึกมิเตอร์', contract: '📄 ทำสัญญาเช่า',
+    report: '📄 รายงาน', history: '🕐 ประวัติ', settings: '⚙️ ตั้งค่า',
   }[page] || page;
   closeSidebar();
 
-  // Refresh page modules
-  if (page === 'dashboard') renderDashboard();
-  if (page === 'history')   renderHistory();
-  if (page === 'report')    renderReport();
-  if (page === 'settings' && typeof loadSettings === 'function') loadSettings();
+  if (page === 'dashboard' && typeof renderDashboard === 'function') renderDashboard();
+  if (page === 'history' && typeof renderHistory === 'function')   renderHistory();
+  if (page === 'report' && typeof renderReport === 'function')    renderReport();
 }
 
-// ── Sidebar mobile ──
-function openSidebar() {
-  document.querySelector('.sidebar').classList.add('open');
-  document.querySelector('.sidebar-backdrop').classList.add('open');
-}
-function closeSidebar() {
-  document.querySelector('.sidebar').classList.remove('open');
-  document.querySelector('.sidebar-backdrop').classList.remove('open');
-}
-
-// ── Modal ──
-function openModal(id) {
-  document.getElementById(id).classList.add('open');
-}
-function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
-}
-
-// ── Telegram Notify ──
-async function sendTelegram(msg) {
-  const token = localStorage.getItem('tg_token');
-  const chat  = localStorage.getItem('tg_chat');
-  if (!token || !chat) { toast('กรุณาตั้งค่า Telegram ก่อน', 'warning'); return false; }
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, text: msg, parse_mode: 'HTML' })
-    });
-    const data = await res.json();
-    if (data.ok) { toast('ส่ง Telegram สำเร็จ ✓', 'success'); return true; }
-    else { toast('Telegram Error: ' + data.description, 'error'); return false; }
-  } catch(e) {
-    toast('ไม่สามารถส่ง Telegram ได้', 'error');
-    return false;
-  }
-}
-
-// ── Google Sheets via Apps Script ──
-async function sendToSheet(payload) {
-  const url = localStorage.getItem('sheet_url');
-  if (!url) return;
-  try {
-    await fetch(url, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch(e) { console.warn('Sheet send failed', e); }
-}
-
-// ── Export Bill as Image (html2canvas) ──
-async function exportBillImage(roomId) {
-  const el = document.getElementById('bill-preview');
-  if (!el || typeof html2canvas === 'undefined') { toast('โหลด html2canvas ไม่สำเร็จ', 'error'); return; }
-  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#fff' });
-  const a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
-  a.download = `bill_${roomId}_${monthKey()}.png`;
-  a.click();
-  toast('บันทึกรูปบิลสำเร็จ', 'success');
-}
-
-// ── Init ──
-document.addEventListener('DOMContentLoaded', () => {
-  // Nav clicks
-  document.querySelectorAll('.nav-item[data-page]').forEach(n => {
-    n.addEventListener('click', () => navigate(n.dataset.page));
-  });
-
-  // Hamburger
-  document.querySelector('.btn-hamburger').addEventListener('click', openSidebar);
-  document.querySelector('.sidebar-backdrop').addEventListener('click', closeSidebar);
-
-  // Modal close buttons
-  document.querySelectorAll('[data-close-modal]').forEach(btn => {
-    btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
-  });
-  document.querySelectorAll('.modal-overlay').forEach(m => {
-    m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
-  });
-
-  // Start on dashboard
-  navigate('dashboard');
-});
+function openSidebar() { document.querySelector('.sidebar').classList.add('open'); document.querySelector('.sidebar-backdrop').classList.add('open'); }
+function closeSidebar() { document.querySelector('.sidebar').classList.remove('open'); document.querySelector('.sidebar-backdrop').classList.remove('open'); }
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }

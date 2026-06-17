@@ -87,10 +87,13 @@ function showRoomPanel(roomId) {
     </div>
     <div class="card-body">
       ${tenant.active ? `
-        <div style="margin-bottom:12px">
-          <div style="font-weight:700;font-size:15px">${tenant.name || '-'}</div>
-          <div style="font-size:13px;color:var(--gray-400)">${tenant.phone || ''}</div>
-          <div style="font-size:12px;color:var(--gray-400)">เข้าอยู่: ${tenant.moveIn || '-'}</div>
+        <div style="margin-bottom:12px; display: flex; gap: 12px; align-items: flex-start;">
+          ${tenant.idCardImage ? `<a href="${tenant.idCardImage}" target="_blank" title="ดูรูปบัตรประชาชน"><div style="width:40px;height:40px;background:var(--gray-200) url('${tenant.idCardImage}') center/cover;border-radius:8px;"></div></a>` : `<div style="width:40px;height:40px;background:var(--gray-200);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;">👤</div>`}
+          <div>
+            <div style="font-weight:700;font-size:15px">${tenant.name || '-'}</div>
+            <div style="font-size:13px;color:var(--gray-400)">${tenant.phone || ''}</div>
+            <div style="font-size:12px;color:var(--gray-400)">เข้าอยู่: ${tenant.moveIn || '-'}</div>
+          </div>
         </div>
         ${bill ? renderBillSummary(bill) : `<div class="alert alert-info">ยังไม่ได้บันทึกบิลเดือนนี้</div>`}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
@@ -113,7 +116,7 @@ function renderBillSummary(bill) {
     ['ค่าไฟฟ้า', `${bill.elecUnits} หน่วย`, fmt(bill.elecAmt)],
     ['ค่าน้ำประปา', `${bill.waterUnits} หน่วย`, fmt(bill.waterAmt)],
   ];
-  if (bill.lateAmt > 0) items.push(['ค่าปรับล่าช้า', `${bill.lateDays} วัน`, fmt(bill.lateAmt)]);
+  if (bill.lateAmt > 0) items.push(['ค่าปรับล่าช้า', `${bill.lateDays || 0} วัน`, fmt(bill.lateAmt)]);
 
   return `
     <table class="bill-table" style="margin-bottom:8px">
@@ -164,29 +167,35 @@ function renderOverdueList() {
   `).join('');
 }
 
-// ── Actions ──
-function markPaid(roomId) {
+// ── Actions (Async) ──
+async function markPaid(roomId) {
   const mk = monthKey();
   const key = `${roomId}-${mk}`;
   if (!STATE.bills[key]) return;
+  
+  // อัปเดต State ภายใน
   STATE.bills[key].paid = true;
   STATE.bills[key].paidDate = isoDate();
-  STATE.payments.push({ roomId, date: isoDate(), amount: STATE.bills[key].total, month: mk });
-  saveState();
-  toast(`ห้อง ${roomId} บันทึกรับเงินแล้ว`, 'success');
+  
+  // ให้ UI อัปเดตก่อน
   renderDashboard();
-  showRoomPanel(roomId);
-  sendToSheet({ action: 'paid', roomId, month: mk, amount: STATE.bills[key].total, date: isoDate() });
+  if(STATE.currentPage === 'dashboard') showRoomPanel(roomId);
+  
+  // บันทึกลง Supabase
+  await saveState();
+  toast(`ห้อง ${roomId} บันทึกรับเงินแล้ว`, 'success');
 }
 
-function sendOverdueNotice(roomId) {
+async function sendOverdueNotice(roomId) {
   const mk = monthKey();
   const bill = STATE.bills[`${roomId}-${mk}`];
   const tenant = STATE.tenants[roomId];
   if (!bill || !tenant) { toast('ไม่พบข้อมูลบิล', 'error'); return; }
+  
   const d = dayOfMonth();
   const lateDays = Math.max(0, d - CFG.DUE_DAY);
   const lateAmt = lateDays * CFG.LATE_PER_DAY;
+  
   const msg = `🏠 <b>${CFG.MANSION_NAME}</b>\n📋 แจ้งยอดค้างชำระ\n\n` +
     `ห้อง: <b>${roomId}</b>\n` +
     `ชื่อ: ${tenant.name}\n` +
@@ -194,19 +203,40 @@ function sendOverdueNotice(roomId) {
     `💰 ยอดที่ต้องชำระ: <b>${fmt(bill.total)} บาท</b>\n` +
     (lateDays > 0 ? `⚠️ ค่าปรับล่าช้า ${lateDays} วัน: ${fmt(lateAmt)} บาท\n` : '') +
     `\n📞 ติดต่อสำนักงาน: ${CFG.PHONE}`;
-  sendTelegram(msg);
+    
+  await sendTelegram(msg);
 }
 
-function confirmVacate(roomId) {
+async function sendAllOverdueTelegram() {
+  const mk = monthKey();
+  const overdue = [];
+  CFG.ROOMS.forEach(r => {
+    const bill = STATE.bills[`${r}-${mk}`];
+    const tenant = STATE.tenants[r];
+    if (bill && !bill.paid && tenant?.active) overdue.push({ r, bill, tenant });
+  });
+  
+  if (!overdue.length) { toast('ไม่มีห้องค้างชำระ', 'success'); return; }
+  
+  const lines = overdue.map(({r, bill, tenant}) => `  • ห้อง ${r} (${tenant.name}): ${fmt(bill.total)} บาท`).join('\n');
+  const msg = `⚠️ <b>${CFG.MANSION_NAME}</b> — รายการค้างชำระ\nเดือน ${thaiMonth(mk)}\n\n${lines}\n\n` +
+    `📞 กรุณาติดต่อ: ${CFG.PHONE}`;
+    
+  await sendTelegram(msg);
+}
+
+async function confirmVacate(roomId) {
   if (!confirm(`ยืนยันการย้ายออกห้อง ${roomId}?`)) return;
   if (STATE.tenants[roomId]) {
     STATE.tenants[roomId].active = false;
     STATE.tenants[roomId].moveOut = isoDate();
   }
-  saveState();
-  toast(`ห้อง ${roomId} ย้ายออกแล้ว`, 'success');
+  
   renderDashboard();
   document.getElementById('room-panel').innerHTML = '';
+  
+  await saveState(); // บันทึกลง Supabase
+  toast(`ห้อง ${roomId} ย้ายออกแล้ว`, 'success');
 }
 
 function preselectRoom(roomId) {
@@ -224,20 +254,9 @@ function openAddTenantModal(roomId) {
   document.getElementById('add-tenant-phone').value = '';
   document.getElementById('add-tenant-id').value = '';
   document.getElementById('add-tenant-movein').value = isoDate();
+  document.getElementById('add-tenant-id-img').value = '';
   openModal('modal-add-tenant');
 }
 
-function submitAddTenant() {
-  const roomId = document.getElementById('add-tenant-room').value;
-  const name   = document.getElementById('add-tenant-name').value.trim();
-  const phone  = document.getElementById('add-tenant-phone').value.trim();
-  const idNum  = document.getElementById('add-tenant-id').value.trim();
-  const moveIn = document.getElementById('add-tenant-movein').value;
-  if (!name) { toast('กรุณากรอกชื่อ', 'error'); return; }
-  STATE.tenants[roomId] = { name, phone, idNum, moveIn, active: true };
-  saveState();
-  closeModal('modal-add-tenant');
-  toast(`เพิ่มผู้เช่าห้อง ${roomId} สำเร็จ`, 'success');
-  renderDashboard();
-  selectRoom(roomId);
-}
+// หมายเหตุ: ฟังก์ชัน submitAddTenant แบบเก่าถูกยกเลิกแล้ว 
+// ไปใช้ submitAddTenantWithImage() ในไฟล์ index.html แทนเพื่อรองรับการอัปโหลดรูป

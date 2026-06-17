@@ -7,13 +7,28 @@
 <title>ฟ้าใสแมนชั่น — ระบบจัดการหอพัก</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
+<style>
+  /* Styles พิเศษสำหรับหน้าสัญญาเช่า เพื่อไม่ให้กระทบ CSS เดิม */
+  .contract-sheet { background: #fff; border: 1px solid var(--gray-200); padding: 32px; font-size: 14px; line-height: 1.7; color: var(--gray-800); }
+  .contract-sheet .clause-title { background: var(--sky-lt); color: var(--sky-dk); font-weight: 700; padding: 6px 12px; border-radius: 6px; margin: 16px 0 8px; }
+  .contract-sheet ul { margin: 8px 0 8px 24px; }
+  .contract-sheet .fill { font-weight: 700; border-bottom: 1px dotted var(--gray-400); padding: 0 4px; }
+  .contract-sheet .sign-block { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 40px; text-align: center; }
+  .contract-sheet .sign-line { border-bottom: 1px dotted var(--gray-600); height: 32px; margin-bottom: 8px; }
+  @media print {
+    body * { visibility: hidden; }
+    #print-contract-area, #print-contract-area * { visibility: visible; }
+    #print-contract-area { position: absolute; left: 0; top: 0; width: 100%; }
+    .no-print { display: none !important; }
+  }
+</style>
 </head>
 <body>
 <div id="app">
 
-  <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="logo-icon">🏠</div>
@@ -30,6 +45,9 @@
       </div>
       <div class="nav-item" data-page="form">
         <span class="icon">📝</span> บันทึกมิเตอร์
+      </div>
+      <div class="nav-item" data-page="contract">
+        <span class="icon">📄</span> ทำสัญญาเช่า
       </div>
       <div class="nav-section">รายงาน</div>
       <div class="nav-item" data-page="report">
@@ -49,10 +67,8 @@
     </div>
   </aside>
 
-  <!-- Backdrop -->
   <div class="sidebar-backdrop"></div>
 
-  <!-- Main -->
   <main class="main">
     <header class="topbar">
       <div style="display:flex;align-items:center;gap:10px">
@@ -66,7 +82,6 @@
 
     <div class="page-content">
 
-      <!-- ══ PAGE: DASHBOARD ══ -->
       <div id="page-dashboard" class="page active">
         <div class="stats-grid">
           <div class="stat-card accent-sky">
@@ -93,7 +108,6 @@
           </div>
         </div>
 
-        <!-- Room Grid -->
         <div class="card" style="margin-bottom:16px">
           <div class="card-header">
             <span class="card-title">แผนผังห้องพัก</span>
@@ -113,7 +127,6 @@
         </div>
 
         <div style="display:grid;grid-template-columns:1fr;gap:16px">
-          <!-- Room Detail Panel -->
           <div class="card">
             <div id="room-panel" style="min-height:120px">
               <div class="card-body" style="text-align:center;color:var(--gray-400);padding:40px 0">
@@ -123,7 +136,6 @@
             </div>
           </div>
 
-          <!-- Overdue List -->
           <div class="card">
             <div class="card-header">
               <span class="card-title">รายการค้างชำระ</span>
@@ -134,7 +146,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: FORM ══ -->
       <div id="page-form" class="page">
         <div style="display:grid;grid-template-columns:1fr;gap:16px">
           <div class="card">
@@ -183,7 +194,6 @@
             </div>
           </div>
 
-          <!-- Bill Preview -->
           <div class="card">
             <div class="card-header">
               <span class="card-title">👁 ตัวอย่างบิล</span>
@@ -202,7 +212,81 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: REPORT ══ -->
+      <div id="page-contract" class="page">
+        <div style="display:grid;grid-template-columns:1fr;gap:16px">
+          
+          <div class="card no-print">
+            <div class="card-header">
+              <span class="card-title">📄 ข้อมูลสร้างสัญญาเช่ารายเดือน</span>
+              <button class="btn btn-outline btn-sm" onclick="fillContractSample()">กรอกตัวอย่าง</button>
+            </div>
+            <div class="card-body">
+              
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">สถานที่ทำสัญญา</label>
+                  <input type="text" class="form-control" id="c_place" value="ฟ้าใสแมนชั่น">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">วันที่ทำสัญญา</label>
+                  <input type="date" class="form-control" id="c_date">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">คำนำหน้า</label>
+                  <select class="form-control" id="t_prefix">
+                    <option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">ชื่อ-นามสกุลผู้เช่า</label>
+                  <input type="text" class="form-control" id="t_name" placeholder="สมชาย ใจดี">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">เลขบัตรประชาชน</label>
+                  <input type="text" class="form-control" id="t_idcard" maxlength="13">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">เบอร์โทรศัพท์</label>
+                  <input type="tel" class="form-control" id="t_phone">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">หมายเลขห้องพัก</label>
+                  <input type="text" class="form-control" id="room_no">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">ชั้นที่</label>
+                  <input type="text" class="form-control" id="room_floor">
+                </div>
+              </div>
+
+              <div style="border-top: 1px solid var(--gray-200); margin: 16px 0; padding-top: 16px;">
+                <button class="btn btn-primary btn-block" onclick="generateContract()">สร้างตัวอย่างสัญญา ▶</button>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="card" id="print-contract-area" style="display:none;">
+            <div class="card-header no-print">
+              <span class="card-title">👁 ตัวอย่างสัญญา (พร้อมพิมพ์)</span>
+              <button class="btn btn-success btn-sm" onclick="window.print()">🖨 พิมพ์สัญญา / PDF</button>
+            </div>
+            <div class="card-body contract-sheet" id="contract-output">
+              </div>
+          </div>
+
+        </div>
+      </div>
+
       <div id="page-report" class="page">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
           <div style="display:flex;align-items:center;gap:10px">
@@ -266,7 +350,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: HISTORY ══ -->
       <div id="page-history" class="page">
         <div class="filter-bar">
           <input type="text" class="form-control" id="hist-search" placeholder="🔍 ค้นหาชื่อ / ห้อง">
@@ -297,7 +380,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: SETTINGS ══ -->
       <div id="page-settings" class="page">
         <div class="card">
           <div class="card-header"><span class="card-title">⚙️ ตั้งค่าระบบ</span></div>
@@ -316,14 +398,6 @@
                 <div class="form-hint">Chat ID ของ group หรือ user</div>
               </div>
               <button class="btn btn-outline btn-sm" onclick="testTelegram()">🧪 ทดสอบ</button>
-            </div>
-
-            <div class="settings-section">
-              <h3>📊 Google Sheets (Apps Script)</h3>
-              <div class="form-group">
-                <label class="form-label">Web App URL (code.gs)</label>
-                <input type="text" class="form-control" id="cfg-sheet-url" placeholder="https://script.google.com/macros/s/.../exec">
-              </div>
             </div>
 
             <div class="settings-section">
@@ -360,32 +434,14 @@
 
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
-              <button class="btn btn-danger btn-outline" onclick="clearAllData()">🗑️ ล้างข้อมูลทั้งหมด</button>
             </div>
-          </div>
-        </div>
-
-        <!-- Google Apps Script Guide -->
-        <div class="card" style="margin-top:16px">
-          <div class="card-header"><span class="card-title">📋 code.gs — Google Apps Script</span></div>
-          <div class="card-body">
-            <div class="alert alert-info">วางโค้ดนี้ใน Google Apps Script แล้ว Deploy เป็น Web App</div>
-            <pre style="background:var(--gray-800);color:#e2e8f0;padding:16px;border-radius:8px;font-size:12px;overflow-x:auto;line-height:1.6" id="gs-code-block"></pre>
-            <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="copyGSCode()">📋 คัดลอก code.gs</button>
           </div>
         </div>
       </div>
 
-    </div><!-- end page-content -->
-  </main>
-</div><!-- end #app -->
+    </div></main>
+</div><div id="toast-container"></div>
 
-<!-- Toast Container -->
-<div id="toast-container"></div>
-
-<!-- ══ MODALS ══ -->
-
-<!-- Add Tenant -->
 <div class="modal-overlay" id="modal-add-tenant">
   <div class="modal">
     <div class="modal-header">
@@ -412,16 +468,19 @@
         <label class="form-label">วันเข้าอยู่</label>
         <input type="date" class="form-control" id="add-tenant-movein">
       </div>
+      <div class="form-group">
+        <label class="form-label">อัปโหลดรูปถ่าย/สำเนาบัตรประชาชน (บันทึกลง Google Drive)</label>
+        <input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;">
+      </div>
       <div class="alert alert-info">💡 ผู้เช่าใหม่ต้องชำระ: เงินประกัน 5,000 + ค่าเช่าล่วงหน้า 3,500 = <strong>8,500 บาท</strong></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" data-close-modal="modal-add-tenant">ยกเลิก</button>
-      <button class="btn btn-primary" onclick="submitAddTenant()">✅ เพิ่มผู้เช่า</button>
+      <button class="btn btn-primary" onclick="submitAddTenantWithImage()">✅ เพิ่มผู้เช่า</button>
     </div>
   </div>
 </div>
 
-<!-- Bill Detail -->
 <div class="modal-overlay" id="modal-bill-detail">
   <div class="modal">
     <div class="modal-header">
@@ -438,11 +497,12 @@
 <script src="js/report.js"></script>
 <script src="js/history.js"></script>
 <script>
-// ── Settings page init ──
+// ── Script เฉพาะหน้า HTML ──
+
+// Settings Page
 function loadSettings() {
   document.getElementById('cfg-tg-token').value = localStorage.getItem('tg_token') || '';
   document.getElementById('cfg-tg-chat').value  = localStorage.getItem('tg_chat') || '';
-  document.getElementById('cfg-sheet-url').value = localStorage.getItem('sheet_url') || '';
   document.getElementById('cfg-rent').value      = CFG.RENT;
   document.getElementById('cfg-elec').value      = CFG.ELEC_RATE;
   document.getElementById('cfg-water').value     = CFG.WATER_RATE;
@@ -450,13 +510,11 @@ function loadSettings() {
   document.getElementById('cfg-late').value      = CFG.LATE_PER_DAY;
   document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
   document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
-  renderGSCode();
 }
 
 function saveSettings() {
   localStorage.setItem('tg_token',  document.getElementById('cfg-tg-token').value.trim());
   localStorage.setItem('tg_chat',   document.getElementById('cfg-tg-chat').value.trim());
-  localStorage.setItem('sheet_url', document.getElementById('cfg-sheet-url').value.trim());
   CFG.RENT       = parseFloat(document.getElementById('cfg-rent').value) || 3500;
   CFG.ELEC_RATE  = parseFloat(document.getElementById('cfg-elec').value) || 8;
   CFG.WATER_RATE = parseFloat(document.getElementById('cfg-water').value) || 18;
@@ -473,99 +531,97 @@ function testTelegram() {
   sendTelegram(`✅ ทดสอบการเชื่อมต่อ ${CFG.MANSION_NAME} — สำเร็จ!`);
 }
 
-function clearAllData() {
-  if (!confirm('⚠️ ล้างข้อมูลทั้งหมด? ไม่สามารถกู้คืนได้!')) return;
-  STATE.bills = {}; STATE.tenants = {}; STATE.payments = [];
-  saveState();
-  toast('ล้างข้อมูลแล้ว', 'warning');
-  renderDashboard();
+// Contract Form Logic
+function fillContractSample() {
+  document.getElementById('c_date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('t_prefix').value = 'นาย';
+  document.getElementById('t_name').value = 'สมชาย ใจดี';
+  document.getElementById('t_idcard').value = '1234567890123';
+  document.getElementById('t_phone').value = '081-234-5678';
+  document.getElementById('room_no').value = '205';
+  document.getElementById('room_floor').value = '2';
 }
 
-// ── GS Code Template ──
-const GS_CODE = `// code.gs — ฟ้าใสแมนชั่น — Google Apps Script
-// Deploy: Extensions > Apps Script > Deploy > Web App (Anyone)
+function generateContract() {
+  const tPrefix = document.getElementById('t_prefix').value;
+  const tName = document.getElementById('t_name').value || '...........................';
+  const idCard = document.getElementById('t_idcard').value || '.............................';
+  const phone = document.getElementById('t_phone').value || '.....................';
+  const roomNo = document.getElementById('room_no').value || '......';
+  const roomFloor = document.getElementById('room_floor').value || '......';
+  
+  const advAmount = CFG.RENT;
+  const totalFirst = CFG.DEPOSIT + advAmount;
+  const dateStr = document.getElementById('c_date').value;
+  
+  // Helpers
+  const b = n => Number(n).toLocaleString('th-TH');
+  const td = iso => {
+    if (!iso) return '...........................';
+    const d = new Date(iso);
+    const m = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    return `${d.getDate()} ${m[d.getMonth()]} ${d.getFullYear()+543}`;
+  };
 
-const SHEET_ID = 'YOUR_GOOGLE_SHEET_ID'; // ใส่ ID ของ Google Sheet
+  const html = `
+    <div style="text-align:center; margin-bottom: 24px;">
+      <h2 style="font-size:20px; font-weight:800; color:var(--sky-dk);">สัญญาเช่าห้องพักรายเดือน</h2>
+      <p style="font-size:14px; color:var(--gray-600);">${CFG.MANSION_NAME} - ${CFG.ADDRESS}</p>
+    </div>
+    <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+      <div>ทำที่: <span class="fill">${document.getElementById('c_place').value || 'ฟ้าใสแมนชั่น'}</span></div>
+      <div>วันที่: <span class="fill">${td(dateStr)}</span></div>
+    </div>
+    <p>สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>${CFG.MANSION_NAME}</strong> ซึ่งต่อไปเรียกว่า <strong>"ผู้ให้เช่า"</strong> กับ
+    ${tPrefix} <span class="fill">${tName}</span> บัตรประจำตัวประชาชนเลขที่ <span class="fill">${idCard}</span>
+    เบอร์โทรศัพท์ <span class="fill">${phone}</span> ซึ่งต่อไปเรียกว่า <strong>"ผู้เช่า"</strong></p>
 
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const ss = SpreadsheetApp.openById(SHEET_ID);
-    
-    if (data.action === 'saveBill') {
-      const sheet = ss.getSheetByName('Bills') || ss.insertSheet('Bills');
-      if (sheet.getLastRow() === 0) {
-        sheet.appendRow(['วันที่','ห้อง','เดือน','ค่าเช่า','ค่าไฟ','ค่าน้ำ','ค่าปรับ','รวม','สถานะ']);
-      }
-      sheet.appendRow([
-        data.createdAt || new Date().toISOString().slice(0,10),
-        data.roomId, data.month,
-        3500, data.elecAmt, data.waterAmt, data.lateAmt||0, data.total, 'ยังไม่ชำระ'
-      ]);
-    }
-    
-    if (data.action === 'paid') {
-      const sheet = ss.getSheetByName('Bills');
-      if (!sheet) return ok();
-      const rows = sheet.getDataRange().getValues();
-      for (let i = 1; i < rows.length; i++) {
-        if (rows[i][1] == data.roomId && rows[i][2] == data.month) {
-          sheet.getRange(i+1, 9).setValue('ชำระแล้ว');
-          sheet.getRange(i+1, 10).setValue(data.date);
-          break;
-        }
-      }
-    }
-    
-    // Save bill as image to Drive (optional)
-    if (data.action === 'saveImage' && data.imageBase64) {
-      const folder = DriveApp.getFoldersByName('FahSai_Bills').hasNext()
-        ? DriveApp.getFoldersByName('FahSai_Bills').next()
-        : DriveApp.createFolder('FahSai_Bills');
-      const blob = Utilities.newBlob(
-        Utilities.base64Decode(data.imageBase64), 'image/png',
-        'bill_' + data.roomId + '_' + data.month + '.png'
-      );
-      folder.createFile(blob);
-    }
-    
-    return ok();
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({error: err.message}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+    <div class="clause-title">ข้อ 1. ห้องพักที่เช่า</div>
+    <p>ตกลงเช่าห้องพัก <strong>หมายเลข ${roomNo}</strong> ชั้นที่ <strong>${roomFloor}</strong> เพื่ออยู่อาศัยส่วนตัว</p>
+
+    <div class="clause-title">ข้อ 2. ค่าเช่าและเงินประกันเข้าอยู่</div>
+    <ul>
+      <li>ค่าเช่าห้องพัก: เดือนละ <strong>${b(CFG.RENT)} บาท</strong></li>
+      <li>เงินประกันความเสียหาย: <strong>${b(CFG.DEPOSIT)} บาท</strong></li>
+      <li>รวมชำระครั้งแรก: <strong>${b(totalFirst)} บาท</strong> (ค่าเช่าล่วงหน้า 1 เดือน + เงินประกัน)</li>
+    </ul>
+
+    <div class="clause-title">ข้อ 3. ค่าน้ำประปาและค่าไฟฟ้า</div>
+    <ul>
+      <li>ค่าน้ำประปา: หน่วยละ <strong>${CFG.WATER_RATE} บาท</strong> (ขั้นต่ำ ${CFG.WATER_MIN} บาท/เดือน)</li>
+      <li>ค่าไฟฟ้า: หน่วยละ <strong>${CFG.ELEC_RATE} บาท</strong></li>
+    </ul>
+
+    <div class="clause-title">ข้อ 4. การชำระเงินและค่าปรับ</div>
+    <p>ชำระภายในวันที่ <strong>${CFG.DUE_DAY}</strong> ของทุกเดือน หากชำระหลังกำหนดปรับวันละ <strong>${CFG.LATE_PER_DAY} บาท</strong> หากเกินวันที่ ${CFG.CUT_DAY} ผู้ให้เช่ามีสิทธิ์ตัดน้ำ-ไฟ ทันที</p>
+
+    <div class="sign-block">
+      <div><div class="sign-line"></div>( <span class="fill">${tName}</span> )<br>ผู้เช่า</div>
+      <div><div class="sign-line"></div>( ผู้แทนฟ้าใสแมนชั่น )<br>ผู้ให้เช่า</div>
+    </div>
+  `;
+  document.getElementById('contract-output').innerHTML = html;
+  document.getElementById('print-contract-area').style.display = 'block';
 }
 
-function ok() {
-  return ContentService.createTextOutput(JSON.stringify({ok:true}))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// Telegram: ส่งแจ้งเตือนจาก Apps Script (optional)
-function sendTelegramFromGS(token, chatId, message) {
-  const url = 'https://api.telegram.org/bot' + token + '/sendMessage';
-  UrlFetchApp.fetch(url, {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
-  });
-}`;
-
-function renderGSCode() {
-  document.getElementById('gs-code-block').textContent = GS_CODE;
-}
-function copyGSCode() {
-  navigator.clipboard.writeText(GS_CODE).then(() => toast('คัดลอก code.gs แล้ว', 'success'));
-}
-
-// ── Topbar date ──
 document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('th-TH', { weekday:'short', year:'numeric', month:'long', day:'numeric' });
 
-// ── Init modules after DOM ready ──
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => {
+    n.addEventListener('click', () => navigate(n.dataset.page));
+  });
+  document.querySelector('.btn-hamburger').addEventListener('click', openSidebar);
+  document.querySelector('.sidebar-backdrop').addEventListener('click', closeSidebar);
+  document.querySelectorAll('[data-close-modal]').forEach(btn => {
+    btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+  });
+  
+  toast('กำลังเชื่อมต่อฐานข้อมูล...', 'default', 2000);
+  await loadSupabaseData(); // โหลดข้อมูลจริงก่อน Render
   loadSettings();
   initForm();
-  initHistory();
+  if (typeof initHistory === 'function') initHistory();
+  navigate('dashboard');
 });
 </script>
 </body>

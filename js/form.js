@@ -38,14 +38,14 @@ function onRoomChange(roomId) {
   const infoEl = document.getElementById('form-tenant-info');
   if (tenant?.active) {
     infoEl.innerHTML = `
-      <div class="alert alert-info">
-        <span>👤</span>
+      <div class="alert alert-info" style="align-items: center;">
+        ${tenant.idCardImage ? `<div style="width:32px;height:32px;background:url('${tenant.idCardImage}') center/cover;border-radius:4px;"></div>` : `<span>👤</span>`}
         <div><strong>${tenant.name}</strong> · ${tenant.phone || '-'}<br>
         <span style="font-size:12px">เข้าอยู่: ${tenant.moveIn || '-'}</span></div>
       </div>`;
     document.getElementById('is-new-tenant').checked = false;
   } else {
-    infoEl.innerHTML = `<div class="alert alert-warning"><span>⚠️</span> ห้องว่าง — กรุณาเพิ่มผู้เช่าก่อน</div>`;
+    infoEl.innerHTML = `<div class="alert alert-warning"><span>⚠️</span> ห้องว่าง — กรุณาเพิ่มผู้เช่าในหน้าภาพรวมก่อน</div>`;
     document.getElementById('is-new-tenant').checked = true;
   }
 
@@ -53,14 +53,14 @@ function onRoomChange(roomId) {
   const prevMk = getPrevMonthKey();
   const prevBill = STATE.bills[`${roomId}-${prevMk}`];
   if (prevBill) {
-    document.getElementById('elec-old').value = prevBill.elecNew || '';
-    document.getElementById('water-old').value = prevBill.waterNew || '';
+    document.getElementById('elec-old').value = prevBill.elecNew || prevBill.elecUnits || '';
+    document.getElementById('water-old').value = prevBill.waterNew || prevBill.waterUnits || '';
   }
   if (existing) {
-    document.getElementById('elec-old').value = existing.elecOld || '';
-    document.getElementById('elec-new').value  = existing.elecNew || '';
-    document.getElementById('water-old').value = existing.waterOld || '';
-    document.getElementById('water-new').value  = existing.waterNew || '';
+    document.getElementById('elec-old').value = existing.elecOld || existing.elecUnits || '';
+    document.getElementById('elec-new').value  = existing.elecNew || existing.elecUnits || '';
+    document.getElementById('water-old').value = existing.waterOld || existing.waterUnits || '';
+    document.getElementById('water-new').value  = existing.waterNew || existing.waterUnits || '';
     document.getElementById('late-days').value  = existing.lateDays || 0;
   }
   recalcBill();
@@ -91,7 +91,7 @@ function recalcBill() {
   const lateDays = parseInt(document.getElementById('late-days').value) || 0;
   const isNew    = document.getElementById('is-new-tenant').checked;
 
-  if (elecNew < elecOld || waterNew < waterOld) {
+  if (elecNew > 0 && elecNew < elecOld || waterNew > 0 && waterNew < waterOld) {
     document.getElementById('bill-preview').innerHTML = `<div class="alert alert-danger">⚠️ เลขมิเตอร์ใหม่ต้องมากกว่าหรือเท่ากับเลขเก่า</div>`;
     return;
   }
@@ -160,33 +160,41 @@ function recalcBill() {
         <div style="border-top:1px solid var(--gray-400);margin-top:28px;padding-top:4px;width:140px">ผู้รับเงิน / ฟ้าใสแมนชั่น</div>
       </div>
     </div>
-
-    <div style="margin-top:12px;background:var(--gray-50);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--gray-600)">
-      ⚠️ หมายเหตุ: กรุณาชำระภายในวันที่ 5 ของเดือน หากชำระตั้งแต่วันที่ 6 เป็นต้นไป ระบบจะคิดค่าปรับวันละ 100 บาทอัตโนมัติ
-    </div>
   `;
 
   // Store draft
-  window._currentBillDraft = { roomId, elecOld, elecNew, waterOld, waterNew, lateDays, isNew, ...bill, month: mk };
+  window._currentBillDraft = { 
+    roomId, elecOld, elecNew, waterOld, waterNew, lateDays, isNew, 
+    ...bill, month: mk 
+  };
 
   document.getElementById('btn-save-bill').disabled = false;
   document.getElementById('btn-export-img').disabled = false;
   document.getElementById('btn-send-tg-bill').disabled = false;
 }
 
-function saveBill() {
+async function saveBill() {
   const d = window._currentBillDraft;
   if (!d) return;
+
+  const btn = document.getElementById('btn-save-bill');
+  btn.disabled = true;
+  btn.textContent = '⏳ กำลังบันทึก...';
+
   const key = `${d.roomId}-${d.month}`;
   STATE.bills[key] = { ...d, paid: false, createdAt: isoDate() };
-  saveState();
+  
+  await saveState(); // บันทึกลง Supabase
+
   toast(`บันทึกบิลห้อง ${d.roomId} เรียบร้อย`, 'success');
-  document.getElementById('btn-save-bill').textContent = '✅ บันทึกแล้ว';
-  setTimeout(() => { document.getElementById('btn-save-bill').textContent = '💾 บันทึกบิล'; }, 2000);
-  sendToSheet({ action: 'saveBill', ...d });
+  btn.textContent = '✅ บันทึกแล้ว';
+  setTimeout(() => { 
+    btn.textContent = '💾 บันทึกบิล'; 
+    btn.disabled = false;
+  }, 2000);
 }
 
-function sendBillTelegram() {
+async function sendBillTelegram() {
   const d = window._currentBillDraft;
   if (!d) return;
   const tenant = STATE.tenants[d.roomId] || {};
@@ -201,5 +209,9 @@ function sendBillTelegram() {
     `\n💰 <b>รวมทั้งสิ้น: ${fmt(d.total)} บาท</b>\n\n` +
     `📅 กำหนดชำระ: วันที่ ${CFG.DUE_DAY} ของเดือน\n` +
     `📞 สอบถาม: ${CFG.PHONE}`;
-  sendTelegram(msg);
+    
+  const btn = document.getElementById('btn-send-tg-bill');
+  btn.disabled = true;
+  await sendTelegram(msg);
+  btn.disabled = false;
 }

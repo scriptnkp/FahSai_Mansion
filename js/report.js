@@ -68,7 +68,7 @@ function buildReport(mk) {
       <td class="text-right"><strong>${fmt(bill.total)}</strong></td>
       <td>
         <span class="badge badge-${bill.paid ? 'success' : 'danger'}">${bill.paid ? '✅ ชำระแล้ว' : '⏳ ค้างชำระ'}</span>
-        ${!bill.paid ? `<button class="btn btn-success btn-sm" style="margin-top:4px" onclick="markPaid('${roomId}');renderReport()">รับเงิน</button>` : ''}
+        ${!bill.paid ? `<button class="btn btn-success btn-sm" style="margin-top:4px" onclick="markPaid('${roomId}').then(() => renderReport())">รับเงิน</button>` : ''}
       </td>
     </tr>
   `).join('');
@@ -87,9 +87,10 @@ function exportReportImage() {
   });
 }
 
-function sendReportTelegram() {
+async function sendReportTelegram() {
   const mk = document.getElementById('report-month-select').value;
   let total = 0, paid = 0, pending = 0, paidCount = 0, pendCount = 0;
+  
   CFG.ROOMS.forEach(r => {
     const bill = STATE.bills[`${r}-${mk}`];
     if (!bill) return;
@@ -97,24 +98,11 @@ function sendReportTelegram() {
     if (bill.paid) { paid += bill.total; paidCount++; }
     else { pending += bill.total; pendCount++; }
   });
+  
   const msg = `📊 <b>${CFG.MANSION_NAME}</b>\nสรุปรายงานประจำเดือน ${thaiMonth(mk)}\n\n` +
     `✅ ชำระแล้ว: <b>${paidCount} ห้อง</b> — ${fmt(paid)} บาท\n` +
     `⏳ ยังไม่ชำระ: <b>${pendCount} ห้อง</b> — ${fmt(pending)} บาท\n` +
     `💰 รวมยอดทั้งหมด: <b>${fmt(total)} บาท</b>`;
-  sendTelegram(msg);
-}
-
-function sendAllOverdueTelegram() {
-  const mk = monthKey();
-  const overdue = [];
-  CFG.ROOMS.forEach(r => {
-    const bill = STATE.bills[`${r}-${mk}`];
-    const tenant = STATE.tenants[r];
-    if (bill && !bill.paid && tenant?.active) overdue.push({ r, bill, tenant });
-  });
-  if (!overdue.length) { toast('ไม่มีห้องค้างชำระ', 'success'); return; }
-  const lines = overdue.map(({r, bill, tenant}) => `  • ห้อง ${r} (${tenant.name}): ${fmt(bill.total)} บาท`).join('\n');
-  const msg = `⚠️ <b>${CFG.MANSION_NAME}</b> — รายการค้างชำระ\nเดือน ${thaiMonth(mk)}\n\n${lines}\n\n` +
-    `📞 กรุณาติดต่อ: ${CFG.PHONE}`;
-  sendTelegram(msg);
+    
+  await sendTelegram(msg);
 }
