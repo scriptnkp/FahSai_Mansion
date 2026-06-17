@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
 <style>
-  /* Styles พิเศษสำหรับหน้าสัญญาเช่า เพื่อไม่ให้กระทบ CSS เดิม */
+  /* Styles สำหรับหน้าสัญญาเช่า */
   .contract-sheet { background: #fff; border: 1px solid var(--gray-200); padding: 32px; font-size: 14px; line-height: 1.7; color: var(--gray-800); }
   .contract-sheet .clause-title { background: var(--sky-lt); color: var(--sky-dk); font-weight: 700; padding: 6px 12px; border-radius: 6px; margin: 16px 0 8px; }
   .contract-sheet ul { margin: 8px 0 8px 24px; }
@@ -63,7 +63,7 @@
     </nav>
     <div class="sidebar-footer">
       <strong>ฟ้าใสแมนชั่น</strong>
-      20 ห้อง · จ.สกลนคร
+      ระบบจัดการอพาร์ทเมนต์
     </div>
   </aside>
 
@@ -118,12 +118,8 @@
               <span class="badge badge-danger">ค้างชำระ</span>
             </div>
           </div>
-          <div class="card-body">
-            <div class="floor-label">ชั้น 1</div>
-            <div class="room-grid" id="room-grid-1"></div>
-            <div class="floor-label">ชั้น 2</div>
-            <div class="room-grid" id="room-grid-2"></div>
-          </div>
+          <div class="card-body" id="dashboard-room-grids-container">
+            </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr;gap:16px">
@@ -187,7 +183,7 @@
                   <label class="form-label">ประเภทผู้เช่า</label>
                   <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
                     <input type="checkbox" id="is-new-tenant" style="width:20px;height:20px;min-height:unset">
-                    <label for="is-new-tenant" style="font-size:14px;cursor:pointer">ผู้เช่าใหม่ (บวกเงินแรกเข้า 5,000 + ค่าเช่าล่วงหน้า)</label>
+                    <label for="is-new-tenant" style="font-size:14px;cursor:pointer">ผู้เช่าใหม่ (บวกเงินแรกเข้า)</label>
                   </div>
                 </div>
               </div>
@@ -221,7 +217,6 @@
               <button class="btn btn-outline btn-sm" onclick="fillContractSample()">กรอกตัวอย่าง</button>
             </div>
             <div class="card-body">
-              
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">สถานที่ทำสัญญา</label>
@@ -232,20 +227,16 @@
                   <input type="date" class="form-control" id="c_date">
                 </div>
               </div>
-
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">คำนำหน้า</label>
-                  <select class="form-control" id="t_prefix">
-                    <option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option>
-                  </select>
+                  <select class="form-control" id="t_prefix"><option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option></select>
                 </div>
                 <div class="form-group">
                   <label class="form-label">ชื่อ-นามสกุลผู้เช่า</label>
                   <input type="text" class="form-control" id="t_name" placeholder="สมชาย ใจดี">
                 </div>
               </div>
-
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">เลขบัตรประชาชน</label>
@@ -256,7 +247,6 @@
                   <input type="tel" class="form-control" id="t_phone">
                 </div>
               </div>
-
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">หมายเลขห้องพัก</label>
@@ -267,11 +257,9 @@
                   <input type="text" class="form-control" id="room_floor">
                 </div>
               </div>
-
               <div style="border-top: 1px solid var(--gray-200); margin: 16px 0; padding-top: 16px;">
                 <button class="btn btn-primary btn-block" onclick="generateContract()">สร้างตัวอย่างสัญญา ▶</button>
               </div>
-
             </div>
           </div>
 
@@ -281,7 +269,7 @@
               <button class="btn btn-success btn-sm" onclick="window.print()">🖨 พิมพ์สัญญา / PDF</button>
             </div>
             <div class="card-body contract-sheet" id="contract-output">
-              </div>
+            </div>
           </div>
 
         </div>
@@ -401,7 +389,21 @@
             </div>
 
             <div class="settings-section">
-              <h3>🏠 ข้อมูลหอพัก</h3>
+              <h3>🏢 ตั้งค่าชั้นและห้องพัก</h3>
+              <div class="form-group">
+                <label class="form-label">รูปแบบห้องพัก (1 บรรทัดต่อ 1 ชั้น คั่นชื่อชั้นและห้องด้วย : และคั่นห้องด้วย ,)</label>
+                <textarea class="form-control" id="cfg-rooms-text" rows="5"></textarea>
+                <div class="form-hint" style="line-height: 1.6; margin-top: 8px;">
+                  <strong>ตัวอย่างการพิมพ์:</strong><br>
+                  ชั้น 1: 101, 102, 103, 104, 105<br>
+                  ชั้น 2: 201, 202, 203, 204, 205<br>
+                  ห้องแถว A: A1, A2, A3
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section">
+              <h3>🏠 ข้อมูลการเงินหอพัก</h3>
               <div class="config-row">
                 <label>ค่าเช่า (บาท/เดือน)</label>
                 <input type="number" class="form-control" id="cfg-rent" value="3500">
@@ -423,7 +425,7 @@
                 <input type="number" class="form-control" id="cfg-late" value="100">
               </div>
               <div class="config-row">
-                <label>วันครบกำหนด</label>
+                <label>วันครบกำหนดชำระ</label>
                 <input type="number" class="form-control" id="cfg-due-day" value="5" min="1" max="28">
               </div>
               <div class="config-row">
@@ -469,10 +471,9 @@
         <input type="date" class="form-control" id="add-tenant-movein">
       </div>
       <div class="form-group">
-        <label class="form-label">อัปโหลดรูปถ่าย/สำเนาบัตรประชาชน (บันทึกลง Google Drive)</label>
+        <label class="form-label">อัปโหลดรูปถ่าย/สำเนาบัตรประชาชน</label>
         <input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;">
       </div>
-      <div class="alert alert-info">💡 ผู้เช่าใหม่ต้องชำระ: เงินประกัน 5,000 + ค่าเช่าล่วงหน้า 3,500 = <strong>8,500 บาท</strong></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" data-close-modal="modal-add-tenant">ยกเลิก</button>
@@ -510,11 +511,14 @@ function loadSettings() {
   document.getElementById('cfg-late').value      = CFG.LATE_PER_DAY;
   document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
   document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
+  document.getElementById('cfg-rooms-text').value = CFG.ROOMS_TEXT;
 }
 
 function saveSettings() {
   localStorage.setItem('tg_token',  document.getElementById('cfg-tg-token').value.trim());
   localStorage.setItem('tg_chat',   document.getElementById('cfg-tg-chat').value.trim());
+  localStorage.setItem('cfg_rooms_text', document.getElementById('cfg-rooms-text').value.trim());
+  
   CFG.RENT       = parseFloat(document.getElementById('cfg-rent').value) || 3500;
   CFG.ELEC_RATE  = parseFloat(document.getElementById('cfg-elec').value) || 8;
   CFG.WATER_RATE = parseFloat(document.getElementById('cfg-water').value) || 18;
@@ -522,7 +526,9 @@ function saveSettings() {
   CFG.LATE_PER_DAY = parseFloat(document.getElementById('cfg-late').value) || 100;
   CFG.DUE_DAY    = parseInt(document.getElementById('cfg-due-day').value) || 5;
   CFG.CUT_DAY    = parseInt(document.getElementById('cfg-cut-day').value) || 10;
-  toast('บันทึกการตั้งค่าแล้ว', 'success');
+  
+  toast('บันทึกการตั้งค่าแล้ว ระบบจะโหลดใหม่ใน 2 วินาที...', 'success');
+  setTimeout(() => { location.reload(); }, 2000);
 }
 
 function testTelegram() {
@@ -554,7 +560,6 @@ function generateContract() {
   const totalFirst = CFG.DEPOSIT + advAmount;
   const dateStr = document.getElementById('c_date').value;
   
-  // Helpers
   const b = n => Number(n).toLocaleString('th-TH');
   const td = iso => {
     if (!iso) return '...........................';
@@ -617,7 +622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   
   toast('กำลังเชื่อมต่อฐานข้อมูล...', 'default', 2000);
-  await loadSupabaseData(); // โหลดข้อมูลจริงก่อน Render
+  await loadSupabaseData();
   loadSettings();
   initForm();
   if (typeof initHistory === 'function') initHistory();

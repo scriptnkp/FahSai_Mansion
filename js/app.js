@@ -1,12 +1,35 @@
 // ── Config ──
+// ดึงข้อมูลห้องพักจาก LocalStorage (ถ้ายังไม่มีให้ใช้ค่าเริ่มต้น)
+const defaultRoomsText = "ชั้น 1: 101, 102, 103, 104, 105, 106, 107, 108, 109, 110\nชั้น 2: 201, 202, 203, 204, 205, 206, 207, 208, 209, 210";
+const savedRoomsText = localStorage.getItem('cfg_rooms_text') || defaultRoomsText;
+
+function parseRoomsText(text) {
+  const structure = [];
+  const allRooms = [];
+  text.split('\n').forEach(line => {
+     if(!line.trim()) return;
+     const parts = line.split(':');
+     const floorName = parts[0].trim();
+     const roomsStr = parts.length > 1 ? parts[1] : parts[0];
+     const rooms = roomsStr.split(',').map(r => r.trim()).filter(r => r);
+     structure.push({ floor: floorName, rooms });
+     allRooms.push(...rooms);
+  });
+  return { structure, allRooms };
+}
+
+const roomData = parseRoomsText(savedRoomsText);
+
 const CFG = {
   // URLs & Tokens
   SUPABASE_URL: 'https://iifmnisoxfbjyhcgabsg.supabase.co',
   SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlpZm1uaXNveGZianloY2dhYnNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2Nzg0NDYsImV4cCI6MjA5NzI1NDQ0Nn0.C58rM5eeIquTrJ4amI1x0_Bp3Ln0zzKjvZZh98qSGb4',
   GAS_URL: 'https://script.google.com/macros/s/AKfycbzWEQ8j9QCfmKV8SkrIVRFZ7lIwACCCoa0zLPeZqXOr6yuQKa5dUKM1W9841DB9XbzrGw/exec',
   
-  // Mansion Config (สามารถดึงจาก LocalStorage ตามหน้าตั้งค่าได้)
-  ROOMS: [...Array(10).keys()].map(i=>`10${i+1}`).concat([...Array(10).keys()].map(i=>`20${i+1}`)),
+  // Mansion Config
+  ROOM_STRUCTURE: roomData.structure,
+  ROOMS: roomData.allRooms,
+  ROOMS_TEXT: savedRoomsText,
   RENT: 3500,
   DEPOSIT: 5000,
   WATER_RATE: 18,
@@ -20,22 +43,21 @@ const CFG = {
   PHONE: '099-040-8668',
 };
 
-// ── Supabase Init (แก้ชื่อตัวแปรเป็น supabaseClient เพื่อไม่ให้ชนกับ CDN) ──
+// ── Supabase Init (แก้ชื่อเป็น supabaseClient เพื่อไม่ให้ชน CDN) ──
 const supabaseClient = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
 
 // ── State ──
 const STATE = {
   currentPage: 'dashboard',
   selectedRoom: null,
-  bills: {},     // จะโหลดจาก Supabase
-  tenants: {},   // จะโหลดจาก Supabase
+  bills: {},     
+  tenants: {},   
   payments: []   
 };
 
 // ── Load Data (Supabase) ──
 async function loadSupabaseData() {
   try {
-    // โหลดผู้เช่า
     const { data: tenantsData, error: errT } = await supabaseClient.from('tenants').select('*');
     if(errT) throw errT;
     if(tenantsData) {
@@ -48,7 +70,6 @@ async function loadSupabaseData() {
       });
     }
 
-    // โหลดบิล
     const { data: billsData, error: errB } = await supabaseClient.from('bills').select('*');
     if(errB) throw errB;
     if(billsData) {
@@ -71,11 +92,9 @@ async function loadSupabaseData() {
 
 // ── Persistence & Supabase Sync ──
 async function saveState() {
-  // บันทึกลง Local ไว้เพื่อความลื่นไหลของ UI
   localStorage.setItem('bills', JSON.stringify(STATE.bills));
   localStorage.setItem('tenants', JSON.stringify(STATE.tenants));
 
-  // อัปเดตขึ้น Supabase แบบ Background (Upsert)
   try {
     const tenantsPayload = Object.entries(STATE.tenants).map(([roomId, t]) => ({
       room_id: roomId, name: t.name, phone: t.phone, id_card: t.idNum,
@@ -150,7 +169,7 @@ async function sendTelegram(msg) {
   }
 }
 
-// ── Overridden Dashboard Function (Add Tenant with File Upload) ──
+// ── Add Tenant Function ──
 async function submitAddTenantWithImage() {
   const roomId = document.getElementById('add-tenant-room').value;
   const name   = document.getElementById('add-tenant-name').value.trim();
@@ -160,22 +179,21 @@ async function submitAddTenantWithImage() {
 
   if (!name) { toast('กรุณากรอกชื่อ', 'error'); return; }
 
-  // แสดงสถานะโหลด
   const btn = document.querySelector('button[onclick="submitAddTenantWithImage()"]');
   const origText = btn.textContent;
   btn.disabled = true;
   btn.textContent = '⏳ กำลังบันทึก...';
 
-  // อัปโหลดรูปไป GAS
   let idCardUrl = await uploadIdCardImage(roomId, 'add-tenant-id-img');
 
   STATE.tenants[roomId] = { name, phone, idNum, moveIn, active: true, idCardImage: idCardUrl };
-  await saveState(); // บันทึก Supabase
+  await saveState(); 
 
   closeModal('modal-add-tenant');
   toast(`เพิ่มผู้เช่าห้อง ${roomId} สำเร็จ`, 'success');
-  renderDashboard();
-  selectRoom(roomId);
+  
+  if (typeof renderDashboard === 'function') renderDashboard();
+  if (typeof selectRoom === 'function') selectRoom(roomId);
 
   btn.disabled = false;
   btn.textContent = origText;
