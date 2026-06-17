@@ -41,8 +41,9 @@ const CFG = {
 
 const supabaseClient = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
 
+// ── Helper: แปลงลิงก์ Google Drive เป็นลิงก์รูปตรง ──
 function getDirectDriveUrl(url) {
-  if (!url || url === 'null') return null;
+  if (!url || url === 'null' || url === '') return null;
   if (url.includes('drive.google.com/file/d/')) {
     const id = url.split('/file/d/')[1].split('/')[0];
     return `https://drive.google.com/uc?export=view&id=${id}`;
@@ -88,7 +89,7 @@ async function loadSupabaseData() {
         };
       });
     }
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error("Load Data Error:", e); }
 }
 
 async function saveState() {
@@ -110,7 +111,7 @@ async function saveState() {
       };
     });
     if(billsPayload.length > 0) await supabaseClient.from('bills').upsert(billsPayload, { onConflict: 'room_id,month_key' });
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error("Sync Error:", e); }
 }
 
 // ── Image Upload & GAS ──
@@ -175,13 +176,34 @@ async function submitAddTenantAndContract() {
 
 function renderContractHTML(t, place) {
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png';
+  const advAmount = CFG.RENT, totalFirst = CFG.DEPOSIT + advAmount;
+  const b = n => Number(n).toLocaleString('th-TH');
+  const td = iso => {
+    if (!iso) return '...... เดือน ................................ พ.ศ. ..............';
+    const d = new Date(iso); const m = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    return `${d.getDate()} เดือน ${m[d.getMonth()]} พ.ศ. ${d.getFullYear()+543}`;
+  };
+
   const html = `
-    <div style="display:flex; align-items:center; gap:16px; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:20px;"><img src="${LOGO_URL}" style="width:120px;"><h2 style="color:#1e3a8a; margin:0;">ฟ้าใสแมนชั่น (Fah Sai Mansion)</h2></div>
+    <div style="display:flex; align-items:center; gap:16px; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:20px;"><img src="${LOGO_URL}" style="width:120px;height:auto;"><h2 style="color:#1e3a8a; margin:0;">ฟ้าใสแมนชั่น (Fah Sai Mansion)</h2></div>
     <h2 style="text-align:center; color:#1e3a8a;">สัญญาเช่าห้องพักรายเดือน</h2>
-    <p>สัญญาห้อง <b>${t.roomId}</b> ชื่อ <b>${t.prefix}${t.name}</b> เริ่มเข้าอยู่ ${t.moveIn}</p>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:20px;">
-      <div style="border:1px dashed #ccc; padding:20px; text-align:center;">${t.idCardImage ? `<img src="${t.idCardImage}" style="max-height:140px;">` : 'บัตรประชาชน'}</div>
-      <div style="border:1px dashed #ccc; padding:20px; text-align:center;">${t.tenantImage ? `<img src="${t.tenantImage}" style="max-height:140px;">` : 'รูปถ่ายผู้เช่า'}</div>
+    <p>ทำที่: ${place || 'ฟ้าใสแมนชั่น'} | วันที่: ${td(t.moveIn)}</p>
+    <p>สัญญาเช่าห้องหมายเลข <b>${t.roomId}</b> ระหว่างผู้ให้เช่า กับ <b>${t.prefix}${t.name}</b> บัตรประชาชนเลขที่ ${t.idNum || '-'} เบอร์โทร ${t.phone || '-'}</p>
+    <div style="margin-top:20px;">
+      <div class="clause-title">ข้อ 2. ค่าเช่าและเงินประกันแรกเข้า</div>
+      <ul>
+        <li>ค่าเช่าห้องพัก: เดือนละ <b>${b(CFG.RENT)} บาท</b></li>
+        <li>เงินประกันความเสียหายแรกเข้า: <b>${b(CFG.DEPOSIT)} บาท</b></li>
+        <li>รวมยอดเงินที่จ่ายเข้าอยู่ครั้งแรก: <b>${b(totalFirst)} บาท</b></li>
+      </ul>
+    </div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
+      <div style="border: 2px dashed #94a3b8; border-radius:4px; padding: 20px; text-align:center; background-color:#f8fafc; min-height:160px; display:flex; justify-content:center; align-items:center;">
+        ${t.idCardImage ? `<img src="${t.idCardImage}" style="max-height:140px;">` : '<strong>พื้นที่วางบัตรประชาชน</strong>'}
+      </div>
+      <div style="border: 2px dashed #94a3b8; border-radius:4px; padding: 20px; text-align:center; background-color:#f8fafc; min-height:160px; display:flex; justify-content:center; align-items:center;">
+        ${t.tenantImage ? `<img src="${t.tenantImage}" style="max-height:140px;">` : '<strong>พื้นที่ติดรูปถ่ายผู้เช่า</strong>'}
+      </div>
     </div>`;
   document.getElementById('contract-output').innerHTML = html; openModal('modal-print-contract');
 }
@@ -190,7 +212,7 @@ function printContractFromHistory(tenantId) {
   const t = STATE.allTenants.find(x => x.id === tenantId); if(t) renderContractHTML(t, 'ฟ้าใสแมนชั่น');
 }
 
-// ── 🆕 ระบบเปิด Popup รับเงินและคำนวณเงินทอนกลาง ──
+// ── ระบบเปิด Popup รับเงินและคำนวณเงินทอน ──
 function openPaymentModal(type, targetId, totalAmount, titleText) {
   document.getElementById('pay-bill-type').value = type;
   document.getElementById('pay-bill-tenant-id').value = targetId;
@@ -198,40 +220,33 @@ function openPaymentModal(type, targetId, totalAmount, titleText) {
   document.getElementById('pay-bill-title').textContent = titleText;
   
   const receivedInput = document.getElementById('pay-bill-received');
-  receivedInput.value = totalAmount; // ใส่ยอดพอดีให้ล่วงหน้า
+  receivedInput.value = totalAmount; 
   document.getElementById('pay-bill-change').textContent = "0.00";
   
-  // สร้าง Event คำนวณเงินทอนสด
   receivedInput.oninput = () => {
     const r = parseFloat(receivedInput.value) || 0;
     const change = Math.max(0, r - totalAmount);
     document.getElementById('pay-bill-change').textContent = fmt(change);
   };
-  
   openModal('modal-pay-bill');
 }
 
-// ฟังก์ชันเมื่อกดยืนยันจากใน Popup รับเงิน
 async function processPaymentConfirm() {
   const type = document.getElementById('pay-bill-type').value;
   const targetId = document.getElementById('pay-bill-tenant-id').value;
   const received = parseFloat(document.getElementById('pay-bill-received').value) || 0;
-  
   closeModal('modal-pay-bill');
   
   if (type === 'monthly') {
-    // บันทึกบิลรายเดือนลง Supabase
-    const mk = monthKey();
-    const key = `${targetId}-${mk}`;
+    const mk = monthKey(), key = `${targetId}-${mk}`;
     if (STATE.bills[key]) {
       STATE.bills[key].paid = true; STATE.bills[key].paidDate = isoDate();
       await saveState(); toast(`บันทึกรับเงินห้อง ${targetId} สำเร็จ`, 'success');
       if (typeof renderDashboard === 'function') renderDashboard();
-      if (STATE.currentPage === 'history') renderHistory();
-      if (STATE.currentPage === 'report') renderReport();
+      if (STATE.currentPage === 'history' && typeof renderHistory === 'function') renderHistory();
+      if (STATE.currentPage === 'report' && typeof renderReport === 'function') renderReport();
     }
   } else if (type === 'initial') {
-    // ออกเอกสารใบเสร็จแรกเข้า
     executePrintInitialReceiptHTML(targetId, received);
   }
 }
@@ -245,24 +260,24 @@ function printInitialReceipt(tenantId) {
 function executePrintInitialReceiptHTML(tenantId, receivedAmt) {
   const t = STATE.allTenants.find(x => x.id === tenantId); if(!t) return;
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png';
-  const total = CFG.DEPOSIT + CFG.RENT;
-  const change = Math.max(0, receivedAmt - total);
+  const total = CFG.DEPOSIT + CFG.RENT, change = Math.max(0, receivedAmt - total);
+  const dateStr = t.moveIn ? new Date(t.moveIn).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : today();
 
   const html = `
     <div style="display:flex; align-items:center; gap:16px; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:16px;">
       <img src="${LOGO_URL}" style="width:100px;"><div><h2 style="color:#1e3a8a; margin:0;">${CFG.MANSION_NAME}</h2><p style="font-size:12px; margin:0;">${CFG.ADDRESS}</p></div>
     </div>
     <h3 style="text-align:center; color:#1e3a8a;">ใบเสร็จรับเงินแรกเข้า (Initial Receipt)</h3>
-    <p>ห้อง: <b>${t.roomId}</b> | ผู้เช่า: <b>${t.prefix}${t.name}</b></p>
+    <p>ห้อง: <b>${t.roomId}</b> | ผู้เช่า: <b>${t.prefix}${t.name}</b> | วันที่: ${dateStr}</p>
     <table style="width:100%; border-collapse:collapse; margin-top:10px;">
-      <tr style="background:#0284c7; color:white;">
-        <th style="padding:10px; border:1px solid #bae6fd; text-align:left;">รายการ</th><th style="padding:10px; border:1px solid #bae6fd; text-align:right;">บาท</th>
-      </tr>
-      <tr><td style="padding:10px; border:1px solid #e2e8f0;">ค่าเช่าล่วงหน้า 1 เดือน</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(CFG.RENT)}</td></tr>
-      <tr><td style="padding:10px; border:1px solid #e2e8f0;">เงินประกันความเสียหาย</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(CFG.DEPOSIT)}</td></tr>
-      <tr style="font-weight:bold; background:#f8fafc;"><td style="padding:10px; border:1px solid #e2e8f0;">รวมเงิน</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(total)}</td></tr>
-      <tr><td style="padding:10px; border:1px solid #e2e8f0; color:#475569;">รับเงินมา</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right; color:#475569;">${fmt(receivedAmt)}</td></tr>
-      <tr style="font-weight:bold; color:#16a34a;"><td style="padding:10px; border:1px solid #e2e8f0;">เงินทอน</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(change)}</td></tr>
+      <thead style="background-color:#0284c7; color:white;"><tr><th style="padding:10px; text-align:left;">รายการ</th><th style="padding:10px; text-align:right; width:30%;">บาท</th></tr></thead>
+      <tbody>
+        <tr><td style="padding:10px; border:1px solid #e2e8f0;">ค่าเช่าห้องล่วงหน้า 1 เดือน</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(CFG.RENT)}</td></tr>
+        <tr><td style="padding:10px; border:1px solid #e2e8f0;">เงินประกันความเสียหาย</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(CFG.DEPOSIT)}</td></tr>
+        <tr style="font-weight:bold; background:#f8fafc;"><td style="padding:10px; border:1px solid #e2e8f0; color:#1e3a8a;">รวมเงิน</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a;">${fmt(total)}</td></tr>
+        <tr><td style="padding:10px; border:1px solid #e2e8f0; color:#475569;">รับเงินมา</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right; color:#475569;">${fmt(receivedAmt)}</td></tr>
+        <tr style="font-weight:bold; color:#16a34a;"><td style="padding:10px; border:1px solid #e2e8f0;">เงินทอน</td><td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(change)}</td></tr>
+      </tbody>
     </table>`;
   document.getElementById('contract-output').innerHTML = html; openModal('modal-print-contract');
 }
