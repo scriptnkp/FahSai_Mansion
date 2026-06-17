@@ -103,7 +103,6 @@ function renderOverdueList() {
     </div>`).join('');
 }
 
-// ── 🆕 สั่งเปิด Popup กรอกเงินทอน แทนการกดเซฟทันที ──
 function markPaid(roomId) {
   const mk = monthKey(), bill = STATE.bills[`${roomId}-${mk}`];
   if (!bill) return;
