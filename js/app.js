@@ -20,8 +20,8 @@ const CFG = {
   PHONE: '099-040-8668',
 };
 
-// ── Supabase Init ──
-const supabase = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
+// ── Supabase Init (แก้ชื่อตัวแปรเป็น supabaseClient เพื่อไม่ให้ชนกับ CDN) ──
+const supabaseClient = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
 
 // ── State ──
 const STATE = {
@@ -36,7 +36,7 @@ const STATE = {
 async function loadSupabaseData() {
   try {
     // โหลดผู้เช่า
-    const { data: tenantsData, error: errT } = await supabase.from('tenants').select('*');
+    const { data: tenantsData, error: errT } = await supabaseClient.from('tenants').select('*');
     if(errT) throw errT;
     if(tenantsData) {
       STATE.tenants = {};
@@ -49,7 +49,7 @@ async function loadSupabaseData() {
     }
 
     // โหลดบิล
-    const { data: billsData, error: errB } = await supabase.from('bills').select('*');
+    const { data: billsData, error: errB } = await supabaseClient.from('bills').select('*');
     if(errB) throw errB;
     if(billsData) {
       STATE.bills = {};
@@ -82,7 +82,7 @@ async function saveState() {
       move_in_date: t.moveIn, active: t.active, id_card_image_url: t.idCardImage || null
     }));
     if(tenantsPayload.length > 0) {
-      await supabase.from('tenants').upsert(tenantsPayload, { onConflict: 'room_id' });
+      await supabaseClient.from('tenants').upsert(tenantsPayload, { onConflict: 'room_id' });
     }
 
     const billsPayload = Object.entries(STATE.bills).map(([key, b]) => {
@@ -96,7 +96,7 @@ async function saveState() {
       };
     });
     if(billsPayload.length > 0) {
-      await supabase.from('bills').upsert(billsPayload, { onConflict: 'room_id,month_key' });
+      await supabaseClient.from('bills').upsert(billsPayload, { onConflict: 'room_id,month_key' });
     }
   } catch (e) {
     console.error("Supabase Sync Failed:", e);
