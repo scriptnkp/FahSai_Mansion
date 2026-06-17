@@ -11,8 +11,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
 <style>
-  /* Styles สำหรับหน้าสัญญาเช่า */
-  .contract-sheet { background: #fff; border: 1px solid var(--gray-200); padding: 32px; font-size: 14px; line-height: 1.7; color: var(--gray-800); }
+  /* Styles สำหรับหน้าสัญญาเช่าที่จะใช้พิมพ์ */
+  .contract-sheet { background: #fff; padding: 40px; font-size: 14px; line-height: 1.7; color: var(--gray-800); max-width: 900px; margin: 0 auto; box-shadow: var(--shadow-lg);}
   .contract-sheet .clause-title { background: var(--sky-lt); color: var(--sky-dk); font-weight: 700; padding: 6px 12px; border-radius: 6px; margin: 16px 0 8px; }
   .contract-sheet ul { margin: 8px 0 8px 24px; }
   .contract-sheet .fill { font-weight: 700; border-bottom: 1px dotted var(--gray-400); padding: 0 4px; }
@@ -20,8 +20,9 @@
   .contract-sheet .sign-line { border-bottom: 1px dotted var(--gray-600); height: 32px; margin-bottom: 8px; }
   @media print {
     body * { visibility: hidden; }
-    #print-contract-area, #print-contract-area * { visibility: visible; }
-    #print-contract-area { position: absolute; left: 0; top: 0; width: 100%; }
+    #modal-print-contract, #modal-print-contract * { visibility: visible; }
+    #modal-print-contract { position: absolute; left: 0; top: 0; width: 100%; background: #fff; z-index: 9999; padding: 0; margin: 0; }
+    .contract-sheet { padding: 0; box-shadow: none; max-width: 100%; }
     .no-print { display: none !important; }
   }
 </style>
@@ -46,15 +47,15 @@
       <div class="nav-item" data-page="form">
         <span class="icon">📝</span> บันทึกมิเตอร์
       </div>
-      <div class="nav-item" data-page="contract">
-        <span class="icon">📄</span> ทำสัญญาเช่า
+      <div class="nav-item" data-page="tenant-history">
+        <span class="icon">👥</span> ประวัติผู้เช่า
       </div>
       <div class="nav-section">รายงาน</div>
       <div class="nav-item" data-page="report">
         <span class="icon">📄</span> รายงานรายเดือน
       </div>
       <div class="nav-item" data-page="history">
-        <span class="icon">🕐</span> ประวัติการชำระ
+        <span class="icon">🕐</span> ประวัติบิล
       </div>
       <div class="nav-section">ระบบ</div>
       <div class="nav-item" data-page="settings">
@@ -154,35 +155,19 @@
               <div id="form-tenant-info"></div>
 
               <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">⚡ เลขไฟเดิม</label>
-                  <input type="number" class="form-control" id="elec-old" min="0" placeholder="เลขมิเตอร์เก่า">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">⚡ เลขไฟใหม่</label>
-                  <input type="number" class="form-control" id="elec-new" min="0" placeholder="เลขมิเตอร์ใหม่">
-                </div>
+                <div class="form-group"><label class="form-label">⚡ เลขไฟเดิม</label><input type="number" class="form-control" id="elec-old" min="0"></div>
+                <div class="form-group"><label class="form-label">⚡ เลขไฟใหม่</label><input type="number" class="form-control" id="elec-new" min="0"></div>
               </div>
               <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">💧 เลขน้ำเดิม</label>
-                  <input type="number" class="form-control" id="water-old" min="0" placeholder="เลขมิเตอร์เก่า">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">💧 เลขน้ำใหม่</label>
-                  <input type="number" class="form-control" id="water-new" min="0" placeholder="เลขมิเตอร์ใหม่">
-                </div>
+                <div class="form-group"><label class="form-label">💧 เลขน้ำเดิม</label><input type="number" class="form-control" id="water-old" min="0"></div>
+                <div class="form-group"><label class="form-label">💧 เลขน้ำใหม่</label><input type="number" class="form-control" id="water-new" min="0"></div>
               </div>
               <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">⚠️ ค่าปรับล่าช้า (วัน)</label>
-                  <input type="number" class="form-control" id="late-days" min="0" value="0">
-                  <div class="form-hint">วันที่ 6 เป็นต้นไป = 100 บาท/วัน</div>
-                </div>
+                <div class="form-group"><label class="form-label">⚠️ ค่าปรับล่าช้า (วัน)</label><input type="number" class="form-control" id="late-days" min="0" value="0"></div>
                 <div class="form-group">
                   <label class="form-label">ประเภทผู้เช่า</label>
                   <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
-                    <input type="checkbox" id="is-new-tenant" style="width:20px;height:20px;min-height:unset">
+                    <input type="checkbox" id="is-new-tenant" style="width:20px;height:20px;">
                     <label for="is-new-tenant" style="font-size:14px;cursor:pointer">ผู้เช่าใหม่ (บวกเงินแรกเข้า)</label>
                   </div>
                 </div>
@@ -200,78 +185,31 @@
               </div>
             </div>
             <div class="card-body">
-              <div id="bill-preview">
-                <div style="text-align:center;color:var(--gray-400);padding:40px 0;font-size:14px">📋 เลือกห้องและกรอกเลขมิเตอร์เพื่อดูบิล</div>
-              </div>
+              <div id="bill-preview"><div style="text-align:center;color:var(--gray-400);padding:40px 0;">📋 เลือกห้องและกรอกเลขมิเตอร์เพื่อดูบิล</div></div>
             </div>
           </div>
         </div>
       </div>
 
-      <div id="page-contract" class="page">
-        <div style="display:grid;grid-template-columns:1fr;gap:16px">
-          
-          <div class="card no-print">
-            <div class="card-header">
-              <span class="card-title">📄 ข้อมูลสร้างสัญญาเช่ารายเดือน</span>
-              <button class="btn btn-outline btn-sm" onclick="fillContractSample()">กรอกตัวอย่าง</button>
-            </div>
-            <div class="card-body">
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">สถานที่ทำสัญญา</label>
-                  <input type="text" class="form-control" id="c_place" value="ฟ้าใสแมนชั่น">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">วันที่ทำสัญญา</label>
-                  <input type="date" class="form-control" id="c_date">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">คำนำหน้า</label>
-                  <select class="form-control" id="t_prefix"><option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option></select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">ชื่อ-นามสกุลผู้เช่า</label>
-                  <input type="text" class="form-control" id="t_name" placeholder="สมชาย ใจดี">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">เลขบัตรประชาชน</label>
-                  <input type="text" class="form-control" id="t_idcard" maxlength="13">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">เบอร์โทรศัพท์</label>
-                  <input type="tel" class="form-control" id="t_phone">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">หมายเลขห้องพัก</label>
-                  <input type="text" class="form-control" id="room_no">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">ชั้นที่</label>
-                  <input type="text" class="form-control" id="room_floor">
-                </div>
-              </div>
-              <div style="border-top: 1px solid var(--gray-200); margin: 16px 0; padding-top: 16px;">
-                <button class="btn btn-primary btn-block" onclick="generateContract()">สร้างตัวอย่างสัญญา ▶</button>
-              </div>
+      <div id="page-tenant-history" class="page">
+        <div class="card">
+          <div class="card-header"><span class="card-title">👥 ประวัติการเข้า-ออก ผู้เช่า</span></div>
+          <div class="card-body">
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ห้อง</th><th>ชื่อ-สกุล</th><th>เบอร์โทร</th>
+                    <th>วันเข้าอยู่</th><th>วันย้ายออก</th><th>สถานะ</th>
+                    <th>เอกสารแนบ</th>
+                  </tr>
+                </thead>
+                <tbody id="tenant-history-tbody">
+                  <tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:20px">กำลังโหลดข้อมูล...</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
-
-          <div class="card" id="print-contract-area" style="display:none;">
-            <div class="card-header no-print">
-              <span class="card-title">👁 ตัวอย่างสัญญา (พร้อมพิมพ์)</span>
-              <button class="btn btn-success btn-sm" onclick="window.print()">🖨 พิมพ์สัญญา / PDF</button>
-            </div>
-            <div class="card-body contract-sheet" id="contract-output">
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -290,51 +228,15 @@
 
         <div id="report-section">
           <div class="stats-grid" style="margin-bottom:16px">
-            <div class="stat-card accent-sky">
-              <div class="stat-icon">🏠</div>
-              <div class="stat-value" id="rpt-count-rooms">-</div>
-              <div class="stat-label">ห้องที่มีบิล</div>
-            </div>
-            <div class="stat-card accent-green">
-              <div class="stat-icon">✅</div>
-              <div class="stat-value" id="rpt-count-paid">-</div>
-              <div class="stat-label">ชำระแล้ว</div>
-              <div class="stat-sub" id="rpt-total-paid">-</div>
-            </div>
-            <div class="stat-card accent-red">
-              <div class="stat-icon">⏳</div>
-              <div class="stat-value" id="rpt-count-pending">-</div>
-              <div class="stat-label">ยังไม่ชำระ</div>
-              <div class="stat-sub" id="rpt-total-pending">-</div>
-            </div>
-            <div class="stat-card accent-amber">
-              <div class="stat-icon">💰</div>
-              <div class="stat-value" id="rpt-total-billed" style="font-size:18px">-</div>
-              <div class="stat-label">รวมยอดบิลทั้งหมด</div>
-            </div>
+            <div class="stat-card accent-sky"><div class="stat-icon">🏠</div><div class="stat-value" id="rpt-count-rooms">-</div><div class="stat-label">ห้องที่มีบิล</div></div>
+            <div class="stat-card accent-green"><div class="stat-icon">✅</div><div class="stat-value" id="rpt-count-paid">-</div><div class="stat-label">ชำระแล้ว</div><div class="stat-sub" id="rpt-total-paid">-</div></div>
+            <div class="stat-card accent-red"><div class="stat-icon">⏳</div><div class="stat-value" id="rpt-count-pending">-</div><div class="stat-label">ยังไม่ชำระ</div><div class="stat-sub" id="rpt-total-pending">-</div></div>
+            <div class="stat-card accent-amber"><div class="stat-icon">💰</div><div class="stat-value" id="rpt-total-billed" style="font-size:18px">-</div><div class="stat-label">รวมยอดบิลทั้งหมด</div></div>
           </div>
-
-          <div class="card">
-            <div class="card-body">
-              <div class="table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>ห้อง</th><th>ชื่อผู้เช่า</th><th>โทร</th>
-                      <th class="text-right">ค่าเช่า</th>
-                      <th class="text-right">ค่าไฟ</th>
-                      <th class="text-right">ค่าน้ำ</th>
-                      <th class="text-right">รวม</th>
-                      <th>สถานะ</th>
-                    </tr>
-                  </thead>
-                  <tbody id="report-tbody">
-                    <tr><td colspan="8" style="text-align:center;color:var(--gray-400);padding:20px">เลือกเดือนเพื่อดูรายงาน</td></tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <div class="card"><div class="card-body"><div class="table-wrap"><table class="data-table">
+            <thead><tr><th>ห้อง</th><th>ชื่อผู้เช่า</th><th>โทร</th><th class="text-right">ค่าเช่า</th><th class="text-right">ค่าไฟ</th><th class="text-right">ค่าน้ำ</th><th class="text-right">รวม</th><th>สถานะ</th></tr></thead>
+            <tbody id="report-tbody"><tr><td colspan="8" style="text-align:center;">เลือกเดือนเพื่อดูรายงาน</td></tr></tbody>
+          </table></div></div></div>
         </div>
       </div>
 
@@ -343,97 +245,42 @@
           <input type="text" class="form-control" id="hist-search" placeholder="🔍 ค้นหาชื่อ / ห้อง">
           <select class="form-control" id="hist-room" style="max-width:120px"><option value="">ทุกห้อง</option></select>
           <select class="form-control" id="hist-month-filter" style="max-width:160px"><option value="">ทุกเดือน</option></select>
-          <select class="form-control" id="hist-status" style="max-width:140px">
-            <option value="">ทุกสถานะ</option>
-            <option value="paid">ชำระแล้ว</option>
-            <option value="pending">ค้างชำระ</option>
-          </select>
+          <select class="form-control" id="hist-status" style="max-width:140px"><option value="">ทุกสถานะ</option><option value="paid">ชำระแล้ว</option><option value="pending">ค้างชำระ</option></select>
           <button class="btn btn-outline btn-sm" id="btn-export-history">📥 Export CSV</button>
         </div>
-        <div class="card">
-          <div class="table-wrap">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>ห้อง</th><th>ชื่อผู้เช่า</th><th>เดือน</th>
-                  <th class="text-right">ยอด (บาท)</th>
-                  <th>สถานะ</th><th>วันที่ชำระ</th><th>การกระทำ</th>
-                </tr>
-              </thead>
-              <tbody id="history-tbody">
-                <tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:20px">ยังไม่มีข้อมูล</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <div class="card"><div class="table-wrap"><table class="data-table">
+          <thead><tr><th>ห้อง</th><th>ชื่อผู้เช่า</th><th>เดือน</th><th class="text-right">ยอด (บาท)</th><th>สถานะ</th><th>วันที่ชำระ</th><th>การกระทำ</th></tr></thead>
+          <tbody id="history-tbody"><tr><td colspan="7" style="text-align:center;">ยังไม่มีข้อมูล</td></tr></tbody>
+        </table></div></div>
       </div>
 
       <div id="page-settings" class="page">
         <div class="card">
           <div class="card-header"><span class="card-title">⚙️ ตั้งค่าระบบ</span></div>
           <div class="card-body">
-
             <div class="settings-section">
               <h3>📤 Telegram Bot</h3>
-              <div class="form-group">
-                <label class="form-label">Bot Token</label>
-                <input type="text" class="form-control" id="cfg-tg-token" placeholder="123456:ABC-DEF...">
-                <div class="form-hint">ได้จาก @BotFather บน Telegram</div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Chat ID</label>
-                <input type="text" class="form-control" id="cfg-tg-chat" placeholder="-100123456789">
-                <div class="form-hint">Chat ID ของ group หรือ user</div>
-              </div>
+              <div class="form-group"><label class="form-label">Bot Token</label><input type="text" class="form-control" id="cfg-tg-token" placeholder="123456:ABC-DEF..."></div>
+              <div class="form-group"><label class="form-label">Chat ID</label><input type="text" class="form-control" id="cfg-tg-chat" placeholder="-100123456789"></div>
               <button class="btn btn-outline btn-sm" onclick="testTelegram()">🧪 ทดสอบ</button>
             </div>
-
             <div class="settings-section">
               <h3>🏢 ตั้งค่าชั้นและห้องพัก</h3>
               <div class="form-group">
-                <label class="form-label">รูปแบบห้องพัก (1 บรรทัดต่อ 1 ชั้น คั่นชื่อชั้นและห้องด้วย : และคั่นห้องด้วย ,)</label>
+                <label class="form-label">รูปแบบห้องพัก (1 บรรทัดต่อ 1 ชั้น)</label>
                 <textarea class="form-control" id="cfg-rooms-text" rows="5"></textarea>
-                <div class="form-hint" style="line-height: 1.6; margin-top: 8px;">
-                  <strong>ตัวอย่างการพิมพ์:</strong><br>
-                  ชั้น 1: 101, 102, 103, 104, 105<br>
-                  ชั้น 2: 201, 202, 203, 204, 205<br>
-                  ห้องแถว A: A1, A2, A3
-                </div>
               </div>
             </div>
-
             <div class="settings-section">
               <h3>🏠 ข้อมูลการเงินหอพัก</h3>
-              <div class="config-row">
-                <label>ค่าเช่า (บาท/เดือน)</label>
-                <input type="number" class="form-control" id="cfg-rent" value="3500">
-              </div>
-              <div class="config-row">
-                <label>ค่าไฟ (บาท/หน่วย)</label>
-                <input type="number" class="form-control" id="cfg-elec" value="8">
-              </div>
-              <div class="config-row">
-                <label>ค่าน้ำ (บาท/หน่วย)</label>
-                <input type="number" class="form-control" id="cfg-water" value="18">
-              </div>
-              <div class="config-row">
-                <label>ค่าน้ำขั้นต่ำ (บาท)</label>
-                <input type="number" class="form-control" id="cfg-water-min" value="100">
-              </div>
-              <div class="config-row">
-                <label>ค่าปรับต่อวัน (บาท)</label>
-                <input type="number" class="form-control" id="cfg-late" value="100">
-              </div>
-              <div class="config-row">
-                <label>วันครบกำหนดชำระ</label>
-                <input type="number" class="form-control" id="cfg-due-day" value="5" min="1" max="28">
-              </div>
-              <div class="config-row">
-                <label>วันตัดน้ำ-ไฟ</label>
-                <input type="number" class="form-control" id="cfg-cut-day" value="10" min="1" max="31">
-              </div>
+              <div class="config-row"><label>ค่าเช่า (บาท/เดือน)</label><input type="number" class="form-control" id="cfg-rent" value="3500"></div>
+              <div class="config-row"><label>ค่าไฟ (บาท/หน่วย)</label><input type="number" class="form-control" id="cfg-elec" value="8"></div>
+              <div class="config-row"><label>ค่าน้ำ (บาท/หน่วย)</label><input type="number" class="form-control" id="cfg-water" value="18"></div>
+              <div class="config-row"><label>ค่าน้ำขั้นต่ำ (บาท)</label><input type="number" class="form-control" id="cfg-water-min" value="100"></div>
+              <div class="config-row"><label>ค่าปรับต่อวัน (บาท)</label><input type="number" class="form-control" id="cfg-late" value="100"></div>
+              <div class="config-row"><label>วันครบกำหนดชำระ</label><input type="number" class="form-control" id="cfg-due-day" value="5"></div>
+              <div class="config-row"><label>วันตัดน้ำ-ไฟ</label><input type="number" class="form-control" id="cfg-cut-day" value="10"></div>
             </div>
-
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button>
             </div>
@@ -441,21 +288,34 @@
         </div>
       </div>
 
-    </div></main>
-</div><div id="toast-container"></div>
+    </div>
+  </main>
+</div>
+
+<div id="toast-container"></div>
 
 <div class="modal-overlay" id="modal-add-tenant">
-  <div class="modal">
+  <div class="modal" style="max-width: 700px;">
     <div class="modal-header">
-      <span class="modal-title">➕ เพิ่มผู้เช่า — ห้อง <span id="modal-add-room"></span></span>
+      <span class="modal-title">➕ เพิ่มผู้เช่า และ ทำสัญญา — ห้อง <span id="modal-add-room"></span></span>
       <button class="modal-close" data-close-modal="modal-add-tenant">✕</button>
     </div>
     <div class="modal-body">
+      <div class="alert alert-info">💡 การบันทึกนี้จะเพิ่มผู้เช่าเข้าห้อง และสร้างแบบฟอร์มสัญญาเช่าให้พิมพ์ทันที</div>
+      
       <input type="hidden" id="add-tenant-room">
-      <div class="form-group">
-        <label class="form-label">ชื่อ-นามสกุล *</label>
-        <input type="text" class="form-control" id="add-tenant-name" placeholder="ชื่อผู้เช่า">
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">คำนำหน้า</label>
+          <select class="form-control" id="add-tenant-prefix"><option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">ชื่อ-นามสกุล *</label>
+          <input type="text" class="form-control" id="add-tenant-name" placeholder="ชื่อผู้เช่า">
+        </div>
       </div>
+      
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">เบอร์โทร</label>
@@ -463,22 +323,51 @@
         </div>
         <div class="form-group">
           <label class="form-label">เลขบัตรประชาชน</label>
-          <input type="text" class="form-control" id="add-tenant-id" placeholder="1-xxxx-xxxxx-xx-x">
+          <input type="text" class="form-control" id="add-tenant-id" placeholder="1-xxxx-xxxxx-xx-x" maxlength="13">
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">วันเข้าอยู่</label>
-        <input type="date" class="form-control" id="add-tenant-movein">
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">สถานที่ทำสัญญา (แสดงในเอกสาร)</label>
+          <input type="text" class="form-control" id="add-tenant-place" value="ฟ้าใสแมนชั่น">
+        </div>
+        <div class="form-group">
+          <label class="form-label">วันที่เข้าอยู่ / ทำสัญญา</label>
+          <input type="date" class="form-control" id="add-tenant-movein">
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">อัปโหลดรูปถ่าย/สำเนาบัตรประชาชน</label>
-        <input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;">
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">📸 อัปโหลดบัตรประชาชน</label>
+          <input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">📸 อัปโหลดรูปถ่ายผู้เช่า</label>
+          <input type="file" class="form-control" id="add-tenant-photo-img" accept="image/*" style="padding: 6px;">
+        </div>
       </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" data-close-modal="modal-add-tenant">ยกเลิก</button>
-      <button class="btn btn-primary" onclick="submitAddTenantWithImage()">✅ เพิ่มผู้เช่า</button>
+      <button class="btn btn-primary" onclick="submitAddTenantAndContract()">✅ บันทึกและสร้างสัญญา</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-print-contract" style="background: rgba(0,0,0,0.8);">
+  <div class="modal" style="max-width: 1000px; max-height: 95vh; display: flex; flex-direction: column;">
+    <div class="modal-header no-print">
+      <span class="modal-title">👁 ตัวอย่างสัญญา (พร้อมพิมพ์)</span>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-success btn-sm" onclick="window.print()">🖨 พิมพ์สัญญา / PDF</button>
+        <button class="modal-close" data-close-modal="modal-print-contract">✕</button>
+      </div>
+    </div>
+    <div class="modal-body contract-sheet" id="contract-output" style="flex:1; overflow-y:auto; border-radius: 0 0 12px 12px;">
+      </div>
   </div>
 </div>
 
@@ -498,183 +387,6 @@
 <script src="js/report.js"></script>
 <script src="js/history.js"></script>
 <script>
-// ── Script เฉพาะหน้า HTML ──
-
-// Settings Page
-function loadSettings() {
-  document.getElementById('cfg-tg-token').value = localStorage.getItem('tg_token') || '';
-  document.getElementById('cfg-tg-chat').value  = localStorage.getItem('tg_chat') || '';
-  document.getElementById('cfg-rent').value      = CFG.RENT;
-  document.getElementById('cfg-elec').value      = CFG.ELEC_RATE;
-  document.getElementById('cfg-water').value     = CFG.WATER_RATE;
-  document.getElementById('cfg-water-min').value = CFG.WATER_MIN;
-  document.getElementById('cfg-late').value      = CFG.LATE_PER_DAY;
-  document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
-  document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
-  document.getElementById('cfg-rooms-text').value = CFG.ROOMS_TEXT;
-}
-
-function saveSettings() {
-  // บันทึก Token และโครงสร้างห้อง
-  localStorage.setItem('tg_token',  document.getElementById('cfg-tg-token').value.trim());
-  localStorage.setItem('tg_chat',   document.getElementById('cfg-tg-chat').value.trim());
-  localStorage.setItem('cfg_rooms_text', document.getElementById('cfg-rooms-text').value.trim());
-  
-  // บันทึกข้อมูลการเงินลง LocalStorage ให้จำค่าข้ามการรีเฟรชได้
-  localStorage.setItem('cfg_rent', document.getElementById('cfg-rent').value);
-  localStorage.setItem('cfg_elec', document.getElementById('cfg-elec').value);
-  localStorage.setItem('cfg_water', document.getElementById('cfg-water').value);
-  localStorage.setItem('cfg_water_min', document.getElementById('cfg-water-min').value);
-  localStorage.setItem('cfg_late', document.getElementById('cfg-late').value);
-  localStorage.setItem('cfg_due_day', document.getElementById('cfg-due-day').value);
-  localStorage.setItem('cfg_cut_day', document.getElementById('cfg-cut-day').value);
-  
-  // อัปเดต State ปัจจุบัน
-  CFG.RENT       = parseFloat(document.getElementById('cfg-rent').value) || 3500;
-  CFG.ELEC_RATE  = parseFloat(document.getElementById('cfg-elec').value) || 8;
-  CFG.WATER_RATE = parseFloat(document.getElementById('cfg-water').value) || 18;
-  CFG.WATER_MIN  = parseFloat(document.getElementById('cfg-water-min').value) || 100;
-  CFG.LATE_PER_DAY = parseFloat(document.getElementById('cfg-late').value) || 100;
-  CFG.DUE_DAY    = parseInt(document.getElementById('cfg-due-day').value) || 5;
-  CFG.CUT_DAY    = parseInt(document.getElementById('cfg-cut-day').value) || 10;
-  
-  toast('บันทึกการตั้งค่าแล้ว ระบบจะโหลดใหม่ใน 2 วินาที...', 'success');
-  setTimeout(() => { location.reload(); }, 2000);
-}
-
-function testTelegram() {
-  localStorage.setItem('tg_token', document.getElementById('cfg-tg-token').value.trim());
-  localStorage.setItem('tg_chat',  document.getElementById('cfg-tg-chat').value.trim());
-  sendTelegram(`✅ ทดสอบการเชื่อมต่อ ${CFG.MANSION_NAME} — สำเร็จ!`);
-}
-
-// Contract Form Logic
-function fillContractSample() {
-  document.getElementById('c_date').value = new Date().toISOString().slice(0,10);
-  document.getElementById('t_prefix').value = 'นาย';
-  document.getElementById('t_name').value = 'สมชาย ใจดี';
-  document.getElementById('t_idcard').value = '1234567890123';
-  document.getElementById('t_phone').value = '081-234-5678';
-  document.getElementById('room_no').value = '205';
-  document.getElementById('room_floor').value = '2';
-}
-
-function generateContract() {
-  const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png'; 
-
-  const tPrefix = document.getElementById('t_prefix').value;
-  const tName = document.getElementById('t_name').value || '.............................................';
-  const idCard = document.getElementById('t_idcard').value || '...................................';
-  const phone = document.getElementById('t_phone').value || '...................................';
-  const roomNo = document.getElementById('room_no').value || '..........';
-  const roomFloor = document.getElementById('room_floor').value || '..........';
-  
-  const advAmount = CFG.RENT;
-  const totalFirst = CFG.DEPOSIT + advAmount;
-  const dateStr = document.getElementById('c_date').value;
-  
-  const b = n => Number(n).toLocaleString('th-TH');
-  const td = iso => {
-    if (!iso) return '...... เดือน ................................ พ.ศ. ..............';
-    const d = new Date(iso);
-    const m = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
-    return `${d.getDate()} เดือน ${m[d.getMonth()]} พ.ศ. ${d.getFullYear()+543}`;
-  };
-
-  const html = `
-    <div style="display:flex; align-items:center; gap:16px; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:20px;">
-      <img src="${LOGO_URL}" alt="Logo" style="width:120px; height:auto; object-fit:contain;" onerror="this.style.display='none'">
-      <div>
-        <h2 style="color:#1e3a8a; margin:0; font-size:22px;">ฟ้าใสแมนชั่น (Fah Sai Mansion)</h2>
-        <p style="margin:4px 0 0; font-size:13px; color:#4b5563;">${CFG.ADDRESS}<br>ติดต่อสำนักงาน: ${CFG.PHONE}</p>
-      </div>
-    </div>
-
-    <h2 style="text-align:center; color:#1e3a8a; margin-bottom:20px; font-size:18px;">สัญญาเช่าห้องพักรายเดือน</h2>
-    
-    <div style="display:flex; justify-content:space-between; margin-bottom:16px; font-weight:bold; font-size:14px;">
-      <div>ทำที่: <span class="fill" style="font-weight:normal">${document.getElementById('c_place').value || 'ฟ้าใสแมนชั่น'}</span></div>
-      <div>วันที่: <span class="fill" style="font-weight:normal">${td(dateStr)}</span></div>
-    </div>
-
-    <p style="text-indent: 40px; margin-bottom:16px; font-size:14px; line-height: 1.8;">
-      สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>ฟ้าใสแมนชั่น</strong> โดย ............................................................................................ ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>"ผู้ให้เช่า"</strong> ฝ่ายหนึ่ง กับ <strong>${tPrefix}</strong> <span class="fill">${tName}</span> บัตรประจำตัวประชาชนเลขที่ <span class="fill">${idCard}</span> เบอร์โทรศัพท์ <span class="fill">${phone}</span> ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>"ผู้เช่า"</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายได้ตกลงทำสัญญาเช่ากันโดยมีข้อความและเงื่อนไขดังต่อไปนี้:
-    </p>
-
-    <div style="margin-bottom: 12px; font-size:14px;">
-      <div style="color:#0284c7; font-weight:bold; border-left:4px solid #f97316; padding-left:8px; margin-bottom:8px;">ข้อ 1. วัตถุประสงค์และทรัพย์สินที่เช่า</div>
-      <p style="text-indent: 20px; margin:0; line-height:1.6;">ผู้ให้เช่าตกลงให้เช่า และผู้เช่าตกลงเช่าห้องพักของฟ้าใสแมนชั่น <strong>ห้องหมายเลข <span class="fill">${roomNo}</span> ชั้นที่ <span class="fill">${roomFloor}</span></strong> เพื่อใช้เป็นที่อยู่อาศัยส่วนตัวเท่านั้น ห้ามมิให้นำไปใช้เพื่อการพาณิชย์ หรือประกอบกิจการใดๆ ที่ผิดกฎหมาย หรือขัดต่อศีลธรรมอันดีงาม</p>
-    </div>
-
-    <div style="margin-bottom: 12px; font-size:14px;">
-      <div style="color:#0284c7; font-weight:bold; border-left:4px solid #f97316; padding-left:8px; margin-bottom:8px;">ข้อ 2. อัตราค่าเช่า เงินประกัน และการเข้าอยู่ครั้งแรก</div>
-      <ul style="list-style-type: disc; margin: 0 0 0 24px; padding: 0; line-height:1.6;">
-        <li><strong>ค่าเช่าห้องพัก:</strong> คิดในอัตราเดือนละ <strong>${b(CFG.RENT)} บาท</strong></li>
-        <li><strong>เงินประกันความเสียหายแรกเข้า:</strong> จำนวน <strong>${b(CFG.DEPOSIT)} บาท</strong></li>
-        <li><strong>ค่าเช่าล่วงหน้า:</strong> จำนวน 1 เดือน เป็นเงิน <strong>${b(advAmount)} บาท</strong></li>
-        <li><strong>รวมยอดชำระแรกเข้าทั้งสิ้น:</strong> จำนวน <strong>${b(totalFirst)} บาท</strong> ซึ่งผู้เช่าได้ชำระให้แก่ผู้ให้เช่าครบถ้วนแล้วในวันทำสัญญานี้</li>
-      </ul>
-    </div>
-
-    <div style="margin-bottom: 12px; font-size:14px;">
-      <div style="color:#0284c7; font-weight:bold; border-left:4px solid #f97316; padding-left:8px; margin-bottom:8px;">ข้อ 3. การคิดค่าน้ำประปาและค่าไฟฟ้า (สาธารณูปโภค)</div>
-      <ul style="list-style-type: disc; margin: 0 0 0 24px; padding: 0; line-height:1.6;">
-        <li><strong>ค่าน้ำประปา:</strong> คิดในอัตราหน่วยละ <strong>${CFG.WATER_RATE} บาท</strong> โดยมีอัตราขั้นต่ำที่ <strong>${CFG.WATER_MIN} บาทต่อเดือน</strong></li>
-        <li><strong>ค่าไฟฟ้า:</strong> คิดในอัตราหน่วยละ <strong>${CFG.ELEC_RATE} บาท</strong> ตามจำนวนหน่วยที่ใช้จริง ไม่มีขั้นต่ำ</li>
-      </ul>
-    </div>
-
-    <div style="margin-bottom: 12px; font-size:14px;">
-      <div style="color:#0284c7; font-weight:bold; border-left:4px solid #f97316; padding-left:8px; margin-bottom:8px;">ข้อ 4. กำหนดการชำระเงินและระบบค่าปรับชำระล่าช้า</div>
-      <p style="text-indent: 20px; margin: 0 0 8px 0; line-height:1.6;">ผู้เช่าต้องชำระค่าเช่าห้องพักรวมถึงค่าน้ำ-ค่าไฟ <strong>ภายในวันที่ ${CFG.DUE_DAY} ของทุกเดือน</strong> หากเกินกำหนดเวลาดังกล่าว ให้ถือว่าผู้เช่าผิดนัดชำระและยินยอมปฏิบัติตามมาตรการดังต่อไปนี้:</p>
-      <ul style="list-style-type: disc; margin: 0 0 0 24px; padding: 0; line-height:1.6;">
-        <li><strong>การคิดค่าปรับ:</strong> หากชำระล่าช้าตั้งแต่วันที่ 6 เป็นต้นไป ผู้เช่าตกลงยินยอมเสียค่าปรับให้แก่ผู้ให้เช่าในอัตรา <strong>วันละ ${CFG.LATE_PER_DAY} บาท</strong> นับตั้งแต่วันที่ผิดนัดจนกว่าจะชำระเสร็จสิ้น</li>
-        <li><strong>มาตรการขั้นเด็ดขาด:</strong> หากผู้เช่าค้างชำระค่าเช่าหรือค่าปรับรวมกันเกินวันที่ <strong>${CFG.CUT_DAY} ของเดือน</strong> ผู้ให้เช่ามีสิทธิ์เด็ดขาดในการระงับการจ่ายน้ำประปาและไฟฟ้าภายในห้องพักดังกล่าวทันที รวมถึงมีสิทธิ์บอกเลิกสัญญาเช่าและเชิญผู้เช่าให้ออกจากห้องพักได้โดยมิต้องแจ้งล่วงหน้า</li>
-      </ul>
-    </div>
-
-    <div style="margin-bottom: 12px; font-size:14px;">
-      <div style="color:#0284c7; font-weight:bold; border-left:4px solid #f97316; padding-left:8px; margin-bottom:8px;">ข้อ 5. เงินประกันและความรับผิดชอบในความเสียหาย</div>
-      <p style="text-indent: 20px; margin:0; line-height:1.6;">เงินประกันจำนวน ${b(CFG.DEPOSIT)} บาทนั้น ผู้ให้เช่าจะถือไว้เพื่อเป็นหลักประกันความเสียหายของห้องพักและอุปกรณ์ต่าง ๆ เมื่อผู้เช่าอยู่ครบตามกำหนดเวลาและประสงค์ย้ายออก ผู้ให้เช่าจะคืนเงินประกันนี้ให้โดยไม่มีดอกเบี้ย ภายในหลังจากหักลบค่าเสียหาย ค่าทำความสะอาด หรือค่าใช้จ่ายที่ผู้เช่าค้างชำระแล้ว (หากมี)</p>
-    </div>
-
-    <div style="margin-bottom: 24px; font-size:14px;">
-      <div style="color:#0284c7; font-weight:bold; border-left:4px solid #f97316; padding-left:8px; margin-bottom:8px;">ข้อ 6. การสิ้นสุดสัญญาเช่าและการย้ายออก</div>
-      <p style="text-indent: 20px; margin:0; line-height:1.6;">หากผู้เช่าประสงค์จะย้ายออกจากห้องพัก จะต้องแจ้งให้ผู้ให้เช่าทราบล่วงหน้าเป็นลายลักษณ์อักษรอย่างน้อย 30 วัน หากย้ายออกก่อนกำหนดโดยไม่แจ้งล่วงหน้า หรือทำผิดข้อสัญญาใดๆ ผู้ให้เช่ามีสิทธิ์ริบเงินประกันความเสียหายทั้งหมดทันที</p>
-    </div>
-
-    <p style="text-align:center; font-weight:bold; margin-bottom:40px; font-size:14px;">สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความถูกต้องตรงกัน คู่สัญญาได้อ่านและเข้าใจข้อความโดยละเอียดตลอดแล้ว จึงได้ลงลายมือชื่อไว้เป็นหลักฐานต่อหน้าพยาน</p>
-
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align:center; margin-bottom: 40px; font-size:14px;">
-      <div>
-        <div>( ............................................................ )</div>
-        <div style="margin-top:8px; font-weight:bold;">ผู้เช่า</div>
-        <div style="margin-top:32px;">( ............................................................ )</div>
-        <div style="margin-top:8px; color:#64748b;">พยาน</div>
-      </div>
-      <div>
-        <div>( ............................................................ )</div>
-        <div style="margin-top:8px; font-weight:bold;">ผู้ให้เช่า (ฟ้าใสแมนชั่น)</div>
-        <div style="margin-top:32px;">( ............................................................ )</div>
-        <div style="margin-top:8px; color:#64748b;">พยาน</div>
-      </div>
-    </div>
-
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-      <div style="border: 2px dashed #94a3b8; border-radius:4px; padding: 40px 20px; text-align:center; background-color:#f8fafc; min-height: 180px; display:flex; flex-direction:column; justify-content:center;">
-        <strong style="color:#1e3a8a; font-size:14px;">พื้นที่สำหรับวางบัตรประชาชน<br>(ขนาดเท่าบัตรจริง)</strong>
-        <div style="font-size:10px; color:#64748b; margin-top:12px;">(กรุณาวางบัตรประชาชนตัวจริงลงในกรอบนี้ก่อนนำไปถ่ายเอกสาร หรือแนบสำเนาที่เซ็นถูกต้อง)</div>
-      </div>
-      <div style="border: 2px dashed #94a3b8; border-radius:4px; padding: 40px 20px; text-align:center; background-color:#f8fafc; min-height: 180px; display:flex; flex-direction:column; justify-content:center;">
-        <strong style="color:#1e3a8a; font-size:14px;">พื้นที่สำหรับติดรูปถ่ายผู้เช่า<br>(ขนาดเท่าบัตรประชาชน)</strong>
-        <div style="font-size:10px; color:#64748b; margin-top:12px;">(กรุณาติดรูปถ่ายหน้าตรงขนาดใหญ่เท่าบัตรประชาชนเพื่อความชัดเจนในการบันทึกประวัติ)</div>
-      </div>
-    </div>
-  `;
-  document.getElementById('contract-output').innerHTML = html;
-  document.getElementById('print-contract-area').style.display = 'block';
-}
-
 document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('th-TH', { weekday:'short', year:'numeric', month:'long', day:'numeric' });
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -692,8 +404,45 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadSettings();
   initForm();
   if (typeof initHistory === 'function') initHistory();
+  if (typeof renderTenantHistory === 'function') renderTenantHistory();
   navigate('dashboard');
 });
+
+// Settings Function
+function loadSettings() {
+  document.getElementById('cfg-tg-token').value = localStorage.getItem('tg_token') || '';
+  document.getElementById('cfg-tg-chat').value  = localStorage.getItem('tg_chat') || '';
+  document.getElementById('cfg-rent').value      = CFG.RENT;
+  document.getElementById('cfg-elec').value      = CFG.ELEC_RATE;
+  document.getElementById('cfg-water').value     = CFG.WATER_RATE;
+  document.getElementById('cfg-water-min').value = CFG.WATER_MIN;
+  document.getElementById('cfg-late').value      = CFG.LATE_PER_DAY;
+  document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
+  document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
+  document.getElementById('cfg-rooms-text').value = CFG.ROOMS_TEXT;
+}
+
+function saveSettings() {
+  localStorage.setItem('tg_token',  document.getElementById('cfg-tg-token').value.trim());
+  localStorage.setItem('tg_chat',   document.getElementById('cfg-tg-chat').value.trim());
+  localStorage.setItem('cfg_rooms_text', document.getElementById('cfg-rooms-text').value.trim());
+  localStorage.setItem('cfg_rent', document.getElementById('cfg-rent').value);
+  localStorage.setItem('cfg_elec', document.getElementById('cfg-elec').value);
+  localStorage.setItem('cfg_water', document.getElementById('cfg-water').value);
+  localStorage.setItem('cfg_water_min', document.getElementById('cfg-water-min').value);
+  localStorage.setItem('cfg_late', document.getElementById('cfg-late').value);
+  localStorage.setItem('cfg_due_day', document.getElementById('cfg-due-day').value);
+  localStorage.setItem('cfg_cut_day', document.getElementById('cfg-cut-day').value);
+  
+  toast('บันทึกการตั้งค่าแล้ว ระบบจะโหลดใหม่ใน 2 วินาที...', 'success');
+  setTimeout(() => { location.reload(); }, 2000);
+}
+
+function testTelegram() {
+  localStorage.setItem('tg_token', document.getElementById('cfg-tg-token').value.trim());
+  localStorage.setItem('tg_chat',  document.getElementById('cfg-tg-chat').value.trim());
+  sendTelegram(`✅ ทดสอบการเชื่อมต่อ ${CFG.MANSION_NAME} — สำเร็จ!`);
+}
 </script>
 </body>
 </html>
