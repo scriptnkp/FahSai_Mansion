@@ -30,20 +30,23 @@ const CFG = {
   ROOM_STRUCTURE: roomData.structure,
   ROOMS: roomData.allRooms,
   ROOMS_TEXT: savedRoomsText,
-  RENT: 3500,
+  
+  // ดึงค่าการเงินจาก LocalStorage หากไม่มีให้ใช้ค่าตั้งต้น (||)
+  RENT: parseFloat(localStorage.getItem('cfg_rent')) || 3500,
   DEPOSIT: 5000,
-  WATER_RATE: 18,
-  WATER_MIN: 100,
-  ELEC_RATE: 8,
-  LATE_PER_DAY: 100,
-  DUE_DAY: 5,
-  CUT_DAY: 10,
+  WATER_RATE: parseFloat(localStorage.getItem('cfg_water')) || 18,
+  WATER_MIN: parseFloat(localStorage.getItem('cfg_water_min')) || 100,
+  ELEC_RATE: parseFloat(localStorage.getItem('cfg_elec')) || 8,
+  LATE_PER_DAY: parseFloat(localStorage.getItem('cfg_late')) || 100,
+  DUE_DAY: parseInt(localStorage.getItem('cfg_due_day')) || 5,
+  CUT_DAY: parseInt(localStorage.getItem('cfg_cut_day')) || 10,
+  
   MANSION_NAME: 'ฟ้าใสแมนชั่น',
   ADDRESS: '1059 ซ.ประชาสามัคคี 7 ถ.ประชาสามัคคี ต.สว่างแดนดิน อ.สว่างแดนดิน จ.สกลนคร 47120',
   PHONE: '099-040-8668',
 };
 
-// ── Supabase Init (แก้ชื่อเป็น supabaseClient เพื่อไม่ให้ชน CDN) ──
+// ── Supabase Init (แก้ชื่อตัวแปรเป็น supabaseClient) ──
 const supabaseClient = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_KEY);
 
 // ── State ──

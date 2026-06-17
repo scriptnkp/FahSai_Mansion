@@ -7,7 +7,6 @@
 <title>ฟ้าใสแมนชั่น — ระบบจัดการหอพัก</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<!-- Supabase JS Client -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
@@ -30,7 +29,6 @@
 <body>
 <div id="app">
 
-  <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="logo-icon">🏠</div>
@@ -69,10 +67,8 @@
     </div>
   </aside>
 
-  <!-- Backdrop -->
   <div class="sidebar-backdrop"></div>
 
-  <!-- Main -->
   <main class="main">
     <header class="topbar">
       <div style="display:flex;align-items:center;gap:10px">
@@ -86,7 +82,6 @@
 
     <div class="page-content">
 
-      <!-- ══ PAGE: DASHBOARD ══ -->
       <div id="page-dashboard" class="page active">
         <div class="stats-grid">
           <div class="stat-card accent-sky">
@@ -113,7 +108,6 @@
           </div>
         </div>
 
-        <!-- Room Grid -->
         <div class="card" style="margin-bottom:16px">
           <div class="card-header">
             <span class="card-title">แผนผังห้องพัก</span>
@@ -125,12 +119,10 @@
             </div>
           </div>
           <div class="card-body" id="dashboard-room-grids-container">
-            <!-- จะถูกสร้างโครงสร้างชั้นและห้องโดย JavaScript อัตโนมัติ -->
-          </div>
+            </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr;gap:16px">
-          <!-- Room Detail Panel -->
           <div class="card">
             <div id="room-panel" style="min-height:120px">
               <div class="card-body" style="text-align:center;color:var(--gray-400);padding:40px 0">
@@ -140,7 +132,6 @@
             </div>
           </div>
 
-          <!-- Overdue List -->
           <div class="card">
             <div class="card-header">
               <span class="card-title">รายการค้างชำระ</span>
@@ -151,7 +142,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: FORM ══ -->
       <div id="page-form" class="page">
         <div style="display:grid;grid-template-columns:1fr;gap:16px">
           <div class="card">
@@ -200,7 +190,6 @@
             </div>
           </div>
 
-          <!-- Bill Preview -->
           <div class="card">
             <div class="card-header">
               <span class="card-title">👁 ตัวอย่างบิล</span>
@@ -219,7 +208,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: CONTRACT (สัญญาเช่า) ══ -->
       <div id="page-contract" class="page">
         <div style="display:grid;grid-template-columns:1fr;gap:16px">
           
@@ -287,7 +275,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: REPORT ══ -->
       <div id="page-report" class="page">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
           <div style="display:flex;align-items:center;gap:10px">
@@ -351,7 +338,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: HISTORY ══ -->
       <div id="page-history" class="page">
         <div class="filter-bar">
           <input type="text" class="form-control" id="hist-search" placeholder="🔍 ค้นหาชื่อ / ห้อง">
@@ -382,7 +368,6 @@
         </div>
       </div>
 
-      <!-- ══ PAGE: SETTINGS ══ -->
       <div id="page-settings" class="page">
         <div class="card">
           <div class="card-header"><span class="card-title">⚙️ ตั้งค่าระบบ</span></div>
@@ -456,16 +441,9 @@
         </div>
       </div>
 
-    </div><!-- end page-content -->
-  </main>
-</div><!-- end #app -->
+    </div></main>
+</div><div id="toast-container"></div>
 
-<!-- Toast Container -->
-<div id="toast-container"></div>
-
-<!-- ══ MODALS ══ -->
-
-<!-- Add Tenant (แก้ไขเพื่อรองรับการอัปโหลดรูป) -->
 <div class="modal-overlay" id="modal-add-tenant">
   <div class="modal">
     <div class="modal-header">
@@ -504,7 +482,6 @@
   </div>
 </div>
 
-<!-- Bill Detail -->
 <div class="modal-overlay" id="modal-bill-detail">
   <div class="modal">
     <div class="modal-header">
@@ -538,10 +515,21 @@ function loadSettings() {
 }
 
 function saveSettings() {
+  // บันทึก Token และโครงสร้างห้อง
   localStorage.setItem('tg_token',  document.getElementById('cfg-tg-token').value.trim());
   localStorage.setItem('tg_chat',   document.getElementById('cfg-tg-chat').value.trim());
   localStorage.setItem('cfg_rooms_text', document.getElementById('cfg-rooms-text').value.trim());
   
+  // บันทึกข้อมูลการเงินลง LocalStorage ให้จำค่าข้ามการรีเฟรชได้
+  localStorage.setItem('cfg_rent', document.getElementById('cfg-rent').value);
+  localStorage.setItem('cfg_elec', document.getElementById('cfg-elec').value);
+  localStorage.setItem('cfg_water', document.getElementById('cfg-water').value);
+  localStorage.setItem('cfg_water_min', document.getElementById('cfg-water-min').value);
+  localStorage.setItem('cfg_late', document.getElementById('cfg-late').value);
+  localStorage.setItem('cfg_due_day', document.getElementById('cfg-due-day').value);
+  localStorage.setItem('cfg_cut_day', document.getElementById('cfg-cut-day').value);
+  
+  // อัปเดต State ปัจจุบัน
   CFG.RENT       = parseFloat(document.getElementById('cfg-rent').value) || 3500;
   CFG.ELEC_RATE  = parseFloat(document.getElementById('cfg-elec').value) || 8;
   CFG.WATER_RATE = parseFloat(document.getElementById('cfg-water').value) || 18;
@@ -657,7 +645,6 @@ function generateContract() {
 
     <p style="text-align:center; font-weight:bold; margin-bottom:40px; font-size:14px;">สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความถูกต้องตรงกัน คู่สัญญาได้อ่านและเข้าใจข้อความโดยละเอียดตลอดแล้ว จึงได้ลงลายมือชื่อไว้เป็นหลักฐานต่อหน้าพยาน</p>
 
-    <!-- Signatures -->
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 40px; text-align:center; margin-bottom: 40px; font-size:14px;">
       <div>
         <div>( ............................................................ )</div>
@@ -673,7 +660,6 @@ function generateContract() {
       </div>
     </div>
 
-    <!-- Image Attachment Boxes -->
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
       <div style="border: 2px dashed #94a3b8; border-radius:4px; padding: 40px 20px; text-align:center; background-color:#f8fafc; min-height: 180px; display:flex; flex-direction:column; justify-content:center;">
         <strong style="color:#1e3a8a; font-size:14px;">พื้นที่สำหรับวางบัตรประชาชน<br>(ขนาดเท่าบัตรจริง)</strong>
