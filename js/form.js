@@ -1,6 +1,5 @@
 // ── Form Module ──
 
-// ── Init ──
 function initForm() {
   const sel = document.getElementById('room-select');
   sel.innerHTML = '<option value="">-- เลือกห้อง --</option>' +
@@ -100,64 +99,97 @@ function recalcBill() {
   const tenant = STATE.tenants[roomId] || {};
   const mk = monthKey();
 
-  // Show diff meters
   const elecDiff  = elecNew - elecOld;
   const waterDiff = waterNew - waterOld;
 
+  const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png'; 
+
   document.getElementById('bill-preview').innerHTML = `
-    <div class="bill-header">
-      <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px">
-        <span style="font-size:24px">🏠</span>
-        <h2>${CFG.MANSION_NAME}</h2>
-      </div>
-      <p>${CFG.ADDRESS}</p>
-      <p>โทร: ${CFG.PHONE}</p>
-    </div>
-    <div class="bill-meta">
-      <div><span class="label">ชื่อผู้เช่า: </span><strong>${tenant.name || '-'}</strong></div>
-      <div><span class="label">เลขที่บิล: </span><strong>-</strong></div>
-      <div><span class="label">ห้อง: </span><strong>${roomId}</strong></div>
-      <div><span class="label">วันที่: </span><strong>${today()}</strong></div>
-      <div style="grid-column:1/-1"><span class="label">ประจำเดือน: </span><strong>${thaiMonth(mk)}</strong></div>
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div class="meter-diff">
-        <div><div class="diff-label">⚡ ไฟฟ้า (หน่วย)</div><div style="font-size:11px;color:var(--gray-400)">${elecOld} → ${elecNew}</div></div>
-        <div class="diff-val">${fmtInt(elecDiff)}</div>
-      </div>
-      <div class="meter-diff">
-        <div><div class="diff-label">💧 น้ำประปา (หน่วย)</div><div style="font-size:11px;color:var(--gray-400)">${waterOld} → ${waterNew}</div></div>
-        <div class="diff-val">${fmtInt(waterDiff)}</div>
+    <div style="display:flex; align-items:center; gap:16px; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:16px;">
+      <img src="${LOGO_URL}" alt="Logo" style="width:100px; height:auto; object-fit:contain;" onerror="this.style.display='none'">
+      <div>
+        <h2 style="color:#1e3a8a; margin:0; font-size:22px;">${CFG.MANSION_NAME} (Fah Sai Mansion)</h2>
+        <p style="margin:4px 0 0; font-size:13px; color:#4b5563;">${CFG.ADDRESS}<br>ติดต่อสำนักงาน: ${CFG.PHONE}</p>
       </div>
     </div>
 
-    <table class="bill-table">
-      <thead><tr><th>รายการ</th><th>จำนวน</th><th>ราคา/หน่วย</th><th class="text-right">จำนวนเงิน</th></tr></thead>
+    <h3 style="text-align:center; color:#1e3a8a; margin-bottom:24px; font-size:17px;">ใบเสร็จรับเงิน / ใบแจ้งหนี้ (Receipt / Invoice)</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; font-size:14px;">
+      <div><strong>ชื่อผู้เช่า:</strong> ${tenant.name || '.............................................'}</div>
+      <div><strong>เลขที่บิล (No.):</strong> .............................................</div>
+      <div><strong>ห้องพักหมายเลข (Room):</strong> ${roomId} &nbsp;&nbsp; <strong>ชั้น:</strong> ${roomId.charAt(0)}</div>
+      <div><strong>วันที่ (Date):</strong> ${today()}</div>
+      <div style="grid-column:1/-1;"><strong>ประจำรอบเดือน (Billing Period):</strong> ${thaiMonth(mk)}</div>
+    </div>
+
+    <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:20px; font-family:'Sarabun', sans-serif;">
+      <thead style="background-color:#0284c7; color:white;">
+        <tr>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:center;">ลำดับ</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:left;">รายการรายละเอียด (Description)</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:center;">จำนวนหน่วย</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:center;">ราคา/หน่วย</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:right;">จำนวนเงิน (บาท)</th>
+        </tr>
+      </thead>
       <tbody>
-        <tr><td>ค่าเช่าห้องพักรายเดือน</td><td>1 เดือน</td><td>${fmt(CFG.RENT)}</td><td class="text-right">${fmt(CFG.RENT)}</td></tr>
-        <tr><td>ค่าไฟฟ้า</td><td>${fmtInt(elecDiff)} หน่วย</td><td>${CFG.ELEC_RATE}</td><td class="text-right">${fmt(bill.elecAmt)}</td></tr>
-        <tr><td>ค่าน้ำประปา ${waterDiff * CFG.WATER_RATE < CFG.WATER_MIN ? '<span style="font-size:11px;color:var(--amber)">(ขั้นต่ำ)</span>' : ''}</td><td>${fmtInt(waterDiff)} หน่วย</td><td>${CFG.WATER_RATE}</td><td class="text-right">${fmt(bill.waterAmt)}</td></tr>
-        ${lateDays > 0 ? `<tr style="color:var(--red)"><td>ค่าปรับชำระล่าช้า</td><td>${lateDays} วัน</td><td>${CFG.LATE_PER_DAY}</td><td class="text-right">${fmt(bill.lateAmt)}</td></tr>` : ''}
-        ${isNew ? `<tr style="color:var(--sky-dk)"><td>เงินประกันแรกเข้า</td><td>1 ครั้ง</td><td>-</td><td class="text-right">${fmt(bill.depositAmt)}</td></tr>` : ''}
-        ${isNew ? `<tr style="color:var(--sky-dk)"><td>ค่าเช่าล่วงหน้า 1 เดือน</td><td>1 เดือน</td><td>-</td><td class="text-right">${fmt(bill.advanceAmt)}</td></tr>` : ''}
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">1</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าเช่าห้องพักรายเดือน (Room Rent)</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">1 เดือน</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmt(CFG.RENT)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(CFG.RENT)}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">2</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าไฟฟ้า (Electricity)<br><span style="font-size:11.5px; color:#64748b;">[ เลขมิเตอร์ใหม่: ${elecNew || '......'} - เลขมิเตอร์เดิม: ${elecOld || '......'} ]</span></td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmtInt(elecDiff) || '............'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.ELEC_RATE.toFixed(2)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${elecDiff > 0 ? fmt(bill.elecAmt) : '........................'}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">3</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าน้ำประปา (Water)<br><span style="font-size:11.5px; color:#64748b;">[ เลขมิเตอร์ใหม่: ${waterNew || '......'} - เลขมิเตอร์เดิม: ${waterOld || '......'} ] *ขั้นต่ำ 100 บ.</span></td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmtInt(waterDiff) || '............'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.WATER_RATE.toFixed(2)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${waterDiff > 0 ? fmt(bill.waterAmt) : '........................'}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">4</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าปรับชำระล่าช้า (Late Payment Penalty) <span style="font-size:11.5px; color:#64748b;">(ตั้งแต่วันที่ 6 เป็นต้นไป)</span></td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${lateDays > 0 ? lateDays + ' วัน' : '............'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.LATE_PER_DAY.toFixed(2)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${lateDays > 0 ? fmt(bill.lateAmt) : '........................'}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">5</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">เงินประกันแรกเข้า / ค่าเช่าล่วงหน้า <span style="font-size:11.5px; color:#64748b;">(เฉพาะผู้เช่าใหม่)</span></td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${isNew ? '1' : '............'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${isNew ? fmt(bill.depositAmt + bill.advanceAmt) : '........................'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${isNew ? fmt(bill.depositAmt + bill.advanceAmt) : '........................'}</td>
+        </tr>
+        <tr style="background-color:#f8fafc; font-weight:bold;">
+          <td colspan="4" style="padding:12px 10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a; font-size:14px;">รวมยอดเงินที่ต้องชำระทั้งสิ้น (Total Amount Due)</td>
+          <td style="padding:12px 10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a; font-size:14px; text-decoration: underline;">${fmt(bill.total)}</td>
+        </tr>
       </tbody>
     </table>
 
-    <div class="bill-total">
-      <div>
-        <div style="font-size:12px;color:var(--gray-600)">รวมยอดที่ต้องชำระ</div>
-        <div style="font-size:12px;color:var(--gray-400)">กำหนดชำระ: วันที่ ${CFG.DUE_DAY} ของเดือน</div>
-      </div>
-      <div class="amount">${fmt(bill.total)} <span style="font-size:14px">บาท</span></div>
+    <div style="background-color:#fefce8; border:1px dashed #ca8a04; border-radius:6px; padding:12px 16px; margin-bottom:32px; font-size:12px; color:#854d0e;">
+      <strong style="font-size:13px;">💡 หมายเหตุการชำระเงิน:</strong><br>
+      1. กรุณาชำระเงินภายในวันที่ <strong>${CFG.DUE_DAY}</strong> ของเดือน หากชำระตั้งแต่วันที่ 6 เป็นต้นไป ระบบจะคิดค่าปรับวันละ <strong>${CFG.LATE_PER_DAY}</strong> บาทอัตโนมัติ<br>
+      2. หากค้างชำระเกินวันที่ <strong>${CFG.CUT_DAY}</strong> ทางหอพักขอสงวนสิทธิ์งดจ่ายน้ำ-ไฟ และดำเนินการตามข้อตกลงในสัญญาเช่าทันที
     </div>
 
-    <div style="display:flex;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid var(--gray-200);font-size:13px">
-      <div style="text-align:center">
-        <div style="border-top:1px solid var(--gray-400);margin-top:28px;padding-top:4px;width:140px">ผู้จ่ายเงิน / ผู้เช่า</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; text-align:center; font-size:14px; margin-bottom:32px;">
+      <div>
+        <div style="margin-bottom:8px;">( ........................................................ )</div>
+        <strong style="color:#1e3a8a;">ผู้จ่ายเงิน / ผู้เช่า</strong>
       </div>
-      <div style="text-align:center">
-        <div style="border-top:1px solid var(--gray-400);margin-top:28px;padding-top:4px;width:140px">ผู้รับเงิน / ฟ้าใสแมนชั่น</div>
+      <div>
+        <div style="margin-bottom:8px;">( ........................................................ )</div>
+        <strong style="color:#1e3a8a;">ผู้รับเงิน / ผู้แทนฟ้าใสแมนชั่น</strong>
       </div>
     </div>
   `;

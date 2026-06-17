@@ -24,11 +24,12 @@ function renderStats() {
     }
   });
 
-  const vacant = 20 - occupied;
+  // ใช้จำนวนห้องทั้งหมดแบบ Dynamic แทนการล็อกค่าตายตัว
+  const vacant = CFG.ROOMS.length - occupied; 
   const expectedMonthly = occupied * CFG.RENT;
 
   document.getElementById('stat-occupied').textContent = occupied;
-  document.getElementById('stat-vacant').textContent = vacant;
+  document.getElementById('stat-vacant').textContent = `${vacant} ห้องว่าง`;
   document.getElementById('stat-paid').textContent = paid;
   document.getElementById('stat-overdue').textContent = overdue;
   document.getElementById('stat-income').textContent = fmtInt(totalIncome);
@@ -39,23 +40,36 @@ function renderStats() {
   if (badge) { badge.textContent = overdue; badge.style.display = overdue ? '' : 'none'; }
 }
 
-// ── Room Grid ──
+// ── Room Grid (Dynamic Structure) ──
 function renderRoomGrid() {
-  const floor1 = document.getElementById('room-grid-1');
-  const floor2 = document.getElementById('room-grid-2');
-  floor1.innerHTML = '';
-  floor2.innerHTML = '';
+  const container = document.getElementById('dashboard-room-grids-container');
+  if (!container) return;
+  container.innerHTML = ''; // ล้างค่าเดิม
 
-  CFG.ROOMS.forEach(r => {
-    const status = getRoomStatus(r);
-    const tenant = STATE.tenants[r];
-    const floor = r.startsWith('1') ? floor1 : floor2;
-    const cell = document.createElement('div');
-    cell.className = `room-cell ${status}${STATE.selectedRoom === r ? ' selected' : ''}`;
-    cell.dataset.room = r;
-    cell.innerHTML = `<span class="room-num">${r}</span><span class="badge badge-${statusBadge(status)}" style="font-size:9px;padding:2px 5px;min-height:unset;">${getRoomStatusLabel(status)}</span>`;
-    cell.addEventListener('click', () => selectRoom(r));
-    floor.appendChild(cell);
+  // วนลูปวาดตารางห้องตามโครงสร้าง (ROOM_STRUCTURE) ที่ตั้งค่าไว้
+  CFG.ROOM_STRUCTURE.forEach(floorData => {
+    // 1. เพิ่มชื่อชั้น
+    const label = document.createElement('div');
+    label.className = 'floor-label';
+    label.textContent = floorData.floor;
+    container.appendChild(label);
+
+    // 2. สร้างกริดสำหรับห้องในชั้นนั้น
+    const grid = document.createElement('div');
+    grid.className = 'room-grid';
+    
+    // 3. วนลูปห้อง
+    floorData.rooms.forEach(r => {
+      const status = getRoomStatus(r);
+      const cell = document.createElement('div');
+      cell.className = `room-cell ${status}${STATE.selectedRoom === r ? ' selected' : ''}`;
+      cell.dataset.room = r;
+      cell.innerHTML = `<span class="room-num">${r}</span><span class="badge badge-${statusBadge(status)}" style="font-size:9px;padding:2px 5px;min-height:unset;">${getRoomStatusLabel(status)}</span>`;
+      cell.addEventListener('click', () => selectRoom(r));
+      grid.appendChild(cell);
+    });
+
+    container.appendChild(grid);
   });
 }
 
@@ -124,7 +138,7 @@ function renderBillSummary(bill) {
       ${items.map(([l,q,a])=>`<tr><td>${l}</td><td style="color:var(--gray-400)">${q}</td><td class="text-right">${a}</td></tr>`).join('')}
       <tr class="total-row"><td colspan="2"><strong>รวม</strong></td><td class="text-right"><strong>${fmt(bill.total)}</strong></td></tr>
     </table>
-    <div style="font-size:12px;color:var(--gray-400)">กำหนดชำระ: วันที่ 5 ของเดือน · ${bill.paid ? `<span style="color:var(--green)">✅ ชำระแล้ว ${bill.paidDate||''}</span>` : `<span style="color:var(--red)">⏳ ยังไม่ชำระ</span>`}</div>
+    <div style="font-size:12px;color:var(--gray-400)">กำหนดชำระ: วันที่ ${CFG.DUE_DAY} ของเดือน · ${bill.paid ? `<span style="color:var(--green)">✅ ชำระแล้ว ${bill.paidDate||''}</span>` : `<span style="color:var(--red)">⏳ ยังไม่ชำระ</span>`}</div>
   `;
 }
 
@@ -257,6 +271,3 @@ function openAddTenantModal(roomId) {
   document.getElementById('add-tenant-id-img').value = '';
   openModal('modal-add-tenant');
 }
-
-// หมายเหตุ: ฟังก์ชัน submitAddTenant แบบเก่าถูกยกเลิกแล้ว 
-// ไปใช้ submitAddTenantWithImage() ในไฟล์ index.html แทนเพื่อรองรับการอัปโหลดรูป
