@@ -77,18 +77,22 @@ async function loadSupabaseData() {
     const { data: billsData, error: errB } = await supabaseClient.from('bills').select('*');
     if(errB) throw errB;
     
-    // เคลียร์ค่า STATE ให้ว่างก่อน เพื่อไม่ให้จำข้อมูลเก่าในเครื่องมาแสดงผล
     STATE.bills = {};
 
     if(billsData && billsData.length > 0) {
       billsData.forEach(b => {
         const key = `${b.room_id}-${b.month_key}`;
+        
+        // 💡 กู้คืนข้อมูลบิลแรกเข้าอัตโนมัติ
+        const isInitialBill = (b.water_amt === 0 && b.elec_amt === 0 && b.total_amount > CFG.RENT);
+
         STATE.bills[key] = {
           roomId: b.room_id, month: b.month_key, elecUnits: b.elec_units, waterUnits: b.water_units,
           elecAmt: b.elec_amt, waterAmt: b.water_amt, lateAmt: b.late_amt, total: b.total_amount,
           paid: b.is_paid, paidDate: b.paid_date,
-          depositAmt: b.deposit_amt || 0, // รองรับข้อมูลเงินประกันถ้ามีการเพิ่มตารางในอนาคต
-          advanceAmt: b.advance_amt || 0
+          isNew: isInitialBill,
+          depositAmt: b.deposit_amt || (isInitialBill ? (b.total_amount - CFG.RENT) : 0),
+          advanceAmt: b.advance_amt || (isInitialBill ? CFG.RENT : 0)
         };
         if(b.elec_old !== undefined) STATE.bills[key].elecOld = b.elec_old;
         if(b.elec_new !== undefined) STATE.bills[key].elecNew = b.elec_new;
@@ -97,7 +101,6 @@ async function loadSupabaseData() {
       });
     }
     
-    // ซิงค์ให้ข้อมูลสำรองในเครื่อง (LocalStorage) ว่างเปล่าตาม Supabase ทันที
     localStorage.setItem('bills', JSON.stringify(STATE.bills));
   } catch (e) { console.error("Load Data Error:", e); }
 }
@@ -419,11 +422,15 @@ function printContractFromHistory(tenantId) {
   document.getElementById('contract-output').innerHTML = htmlContent;
   openModal('modal-print-contract');
   
+  // 💡 แก้ไข: ใช้ cloneNode ป้องกันคำสั่งพิมพ์ค้างซ้อนทับกัน
   const printBtn = document.querySelector('#modal-print-contract .btn-success');
   if (printBtn) {
-    printBtn.onclick = function() {
+    const newBtn = printBtn.cloneNode(true);
+    printBtn.parentNode.replaceChild(newBtn, printBtn);
+    
+    newBtn.addEventListener('click', function() {
       printHidden(htmlContent, `สัญญาเช่าห้อง_${t.roomId}`);
-    };
+    });
   }
 }
 
@@ -530,10 +537,9 @@ async function processPaymentConfirm() {
         createdAt: isoDate()
       };
       
-      await saveState(); // ซิงค์ขึ้น Supabase และ LocalStorage
+      await saveState(); 
       toast(`บันทึกประวัติค่าเช่าแรกเข้าห้อง ${t.roomId} เรียบร้อย`, 'success');
       
-      // อัปเดตหน้าจอหลักทันที
       if (typeof renderDashboard === 'function') renderDashboard();
       if (STATE.currentPage === 'history' && typeof renderHistory === 'function') renderHistory();
       if (STATE.currentPage === 'report' && typeof renderReport === 'function') renderReport();
@@ -590,11 +596,15 @@ function executePrintInitialReceiptHTML(tenantId, receivedAmt) {
   document.getElementById('contract-output').innerHTML = htmlContent; 
   openModal('modal-print-contract');
   
+  // 💡 แก้ไข: ใช้ cloneNode ป้องกันคำสั่งพิมพ์ค้างซ้อนทับกัน
   const printBtn = document.querySelector('#modal-print-contract .btn-success');
   if (printBtn) {
-    printBtn.onclick = function() {
+    const newBtn = printBtn.cloneNode(true);
+    printBtn.parentNode.replaceChild(newBtn, printBtn);
+    
+    newBtn.addEventListener('click', function() {
       printHidden(htmlContent, `ใบเสร็จแรกเข้า_${t.roomId}`);
-    };
+    });
   }
 }
 

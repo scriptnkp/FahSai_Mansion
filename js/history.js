@@ -94,7 +94,7 @@ function exportHistoryCSV() {
   toast('ส่งออก CSV สำเร็จ', 'success');
 }
 
-// 💡 เปิดหน้าใบเสร็จ แก้ไขให้แยกระหว่างบิลรายเดือน กับ บิลแรกเข้า และให้ปุ่มพิมพ์ทำงานได้
+// 💡 เปิดหน้าใบเสร็จ แก้ไขให้แยกระหว่างบิลรายเดือน กับ บิลแรกเข้า และให้ปุ่มพิมพ์ทำงานได้อย่างถูกต้อง
 function viewBillDetail(roomId, mk) {
   const bill = STATE.bills[`${roomId}-${mk}`];
   const tenant = STATE.tenants[roomId] || { name: '.............................................' };
@@ -134,19 +134,11 @@ function viewBillDetail(roomId, mk) {
           </tr>
           <tr>
             <td style="padding:10px; border:1px solid #e2e8f0;">เงินประกันความเสียหาย</td>
-            <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(bill.depositAmt || CFG.DEPOSIT)}</td>
+            <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(bill.depositAmt || (bill.total - (bill.advanceAmt || CFG.RENT)))}</td>
           </tr>
           <tr style="font-weight:bold; background:#f8fafc;">
             <td style="padding:10px; border:1px solid #e2e8f0; color:#1e3a8a;">รวมเงิน</td>
             <td style="padding:10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a;">${fmt(bill.total)}</td>
-          </tr>
-          <tr>
-            <td style="padding:10px; border:1px solid #e2e8f0; color:#475569;">รับเงินมา</td>
-            <td style="padding:10px; border:1px solid #e2e8f0; text-align:right; color:#475569;">${fmt(bill.total)}</td>
-          </tr>
-          <tr style="font-weight:bold; color:#16a34a;">
-            <td style="padding:10px; border:1px solid #e2e8f0;">เงินทอน</td>
-            <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">0.00</td>
           </tr>
         </tbody>
       </table>
@@ -242,16 +234,20 @@ function viewBillDetail(roomId, mk) {
     `;
   }
 
-  // 1. นำ HTML ไปใส่ใน Popup
+  // นำ HTML ไปใส่ใน Popup
   document.getElementById('contract-output').innerHTML = html; 
   openModal('modal-print-contract');
   
-  // 2. 💡 ส่วนที่แก้ไขสำคัญ: ทำให้ปุ่มพิมพ์สีเขียวทำงานได้
+  // 💡 ผูกคำสั่งให้ปุ่มพิมพ์สีเขียวทำงาน
   const printBtn = document.querySelector('#modal-print-contract .btn-success');
   if (printBtn) {
-    printBtn.onclick = function() {
+    // ต้องใช้วิธี clone ป้องกันการผูก event ซ้ำซ้อนเวลากดหลายๆ ครั้ง
+    const newBtn = printBtn.cloneNode(true);
+    printBtn.parentNode.replaceChild(newBtn, printBtn);
+    
+    newBtn.addEventListener('click', function() {
       const docTitle = isInitial ? `ใบเสร็จแรกเข้า_${roomId}` : `ใบเสร็จ_${roomId}_${mk}`;
       printHidden(html, docTitle);
-    };
+    });
   }
 }
