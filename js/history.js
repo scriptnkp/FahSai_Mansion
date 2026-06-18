@@ -16,10 +16,8 @@ function renderHistory() {
     rows.push({ key, roomId, mk, bill, tenant });
   });
 
-  // Sort newest first
   rows.sort((a, b) => b.mk.localeCompare(a.mk) || a.roomId.localeCompare(b.roomId));
 
-  // Filter
   const filtered = rows.filter(({roomId, mk, bill, tenant}) => {
     if (room   && roomId !== room) return false;
     if (month  && mk !== month) return false;
@@ -45,9 +43,9 @@ function renderHistory() {
       <td>${bill.paid ? (bill.paidDate || '-') : '-'}</td>
       <td>
         ${!bill.paid
-          ? `<button class="btn btn-success btn-sm" onclick="markPaid('${roomId}').then(() => renderHistory())">รับเงิน</button>
+          ? `<button class="btn btn-success btn-sm" onclick="markPaid('${roomId}')">รับเงิน</button>
              <button class="btn btn-outline btn-sm" onclick="sendOverdueNotice('${roomId}')">📤 TG</button>`
-          : `<button class="btn btn-outline btn-sm" onclick="viewBillDetail('${roomId}','${mk}')">👁 ดูบิล</button>`
+          : `<button class="btn btn-outline btn-sm" onclick="viewBillDetail('${roomId}','${mk}')">🖨 พิมพ์ใบเสร็จ</button>`
         }
       </td>
     </tr>
@@ -55,12 +53,10 @@ function renderHistory() {
 }
 
 function populateHistoryFilters() {
-  // Room filter
   const rs = document.getElementById('hist-room');
   if (rs && rs.options.length <= 1) {
     rs.innerHTML = '<option value="">ทุกห้อง</option>' + CFG.ROOMS.map(r => `<option value="${r}">${r}</option>`).join('');
   }
-  // Month filter
   const ms = document.getElementById('hist-month-filter');
   const months = new Set();
   Object.keys(STATE.bills).forEach(k => { const m = k.split('-').slice(1).join('-'); if(m) months.add(m); });
@@ -98,25 +94,92 @@ function exportHistoryCSV() {
   toast('ส่งออก CSV สำเร็จ', 'success');
 }
 
+// 💡 เปิดหน้าใบเสร็จสวยงาม แทน Modal ตัวเก่าที่หน้าตาจืดชืด
 function viewBillDetail(roomId, mk) {
   const bill = STATE.bills[`${roomId}-${mk}`];
-  const tenant = STATE.tenants[roomId] || {};
+  const tenant = STATE.tenants[roomId] || { name: '.............................................' };
   if (!bill) return;
-  const el = document.getElementById('history-bill-detail');
-  el.innerHTML = `
-    <div class="bill-header"><h2>${CFG.MANSION_NAME}</h2><p>${thaiMonth(mk)}</p></div>
-    <div class="bill-meta">
-      <div><span class="label">ห้อง: </span><strong>${roomId}</strong></div>
-      <div><span class="label">ชื่อ: </span><strong>${tenant.name||'-'}</strong></div>
+
+  const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png'; 
+
+  const html = `
+    <div style="display:flex; align-items:center; gap:16px; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:16px;">
+      <img src="${LOGO_URL}" alt="Logo" style="width:100px; height:auto; object-fit:contain;" onerror="this.style.display='none'">
+      <div>
+        <h2 style="color:#1e3a8a; margin:0; font-size:22px;">${CFG.MANSION_NAME} (Fah Sai Mansion)</h2>
+        <p style="margin:4px 0 0; font-size:13px; color:#4b5563;">${CFG.ADDRESS}<br>ติดต่อสำนักงาน: ${CFG.PHONE}</p>
+      </div>
     </div>
-    <table class="bill-table">
-      <tr><td>ค่าเช่า</td><td class="text-right">${fmt(CFG.RENT)}</td></tr>
-      <tr><td>ค่าไฟฟ้า (${bill.elecUnits} หน่วย)</td><td class="text-right">${fmt(bill.elecAmt)}</td></tr>
-      <tr><td>ค่าน้ำประปา (${bill.waterUnits} หน่วย)</td><td class="text-right">${fmt(bill.waterAmt)}</td></tr>
-      ${bill.lateAmt > 0 ? `<tr><td>ค่าปรับ (${bill.lateDays} วัน)</td><td class="text-right">${fmt(bill.lateAmt)}</td></tr>` : ''}
-      <tr class="total-row"><td><strong>รวม</strong></td><td class="text-right"><strong>${fmt(bill.total)}</strong></td></tr>
+
+    <h3 style="text-align:center; color:#1e3a8a; margin-bottom:24px; font-size:17px;">ใบเสร็จรับเงิน (Receipt)</h3>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; font-size:14px;">
+      <div><strong>ชื่อผู้เช่า:</strong> ${tenant.name || '.............................................'}</div>
+      <div><strong>เลขที่บิล (No.):</strong> INV-${roomId}-${mk.replace('-','')}</div>
+      <div><strong>ห้องพักหมายเลข (Room):</strong> ${roomId} &nbsp;&nbsp; <strong>ชั้น:</strong> ${roomId.charAt(0)}</div>
+      <div><strong>วันที่ชำระ (Paid Date):</strong> ${bill.paidDate || '-'}</div>
+      <div style="grid-column:1/-1;"><strong>ประจำรอบเดือน (Billing Period):</strong> ${thaiMonth(mk)}</div>
+    </div>
+
+    <table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:20px; font-family:'Sarabun', sans-serif;">
+      <thead style="background-color:#0284c7; color:white;">
+        <tr>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:center;">ลำดับ</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:left;">รายการรายละเอียด (Description)</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:center;">จำนวนหน่วย</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:center;">ราคา/หน่วย</th>
+          <th style="padding:10px; border:1px solid #bae6fd; text-align:right;">จำนวนเงิน (บาท)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">1</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าเช่าห้องพักรายเดือน (Room Rent)</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">1 เดือน</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmt(CFG.RENT)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(CFG.RENT)}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">2</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าไฟฟ้า (Electricity)</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmtInt(bill.elecUnits)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.ELEC_RATE.toFixed(2)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(bill.elecAmt)}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">3</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าน้ำประปา (Water) *ขั้นต่ำ ${CFG.WATER_MIN} บ.</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmtInt(bill.waterUnits)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.WATER_RATE.toFixed(2)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(bill.waterAmt)}</td>
+        </tr>
+        ${bill.lateAmt > 0 ? `
+        <tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">4</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าปรับชำระล่าช้า (Late Payment Penalty)</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">-</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">-</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(bill.lateAmt)}</td>
+        </tr>` : ''}
+        <tr style="background-color:#f8fafc; font-weight:bold;">
+          <td colspan="4" style="padding:12px 10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a; font-size:14px;">รวมยอดเงินที่ชำระแล้วทั้งสิ้น (Total Paid)</td>
+          <td style="padding:12px 10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a; font-size:14px; text-decoration: underline;">${fmt(bill.total)}</td>
+        </tr>
+      </tbody>
     </table>
-    <div style="margin-top:12px;font-size:13px;color:var(--green)">✅ ชำระแล้ววันที่ ${bill.paidDate||'-'}</div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; text-align:center; font-size:14px; margin-top: 40px; margin-bottom:32px;">
+      <div>
+        <div style="margin-bottom:8px;">( ${tenant.name || '........................................................'} )</div>
+        <strong style="color:#1e3a8a;">ผู้จ่ายเงิน / ผู้เช่า</strong>
+      </div>
+      <div>
+        <div style="margin-bottom:8px;">( ........................................................ )</div>
+        <strong style="color:#1e3a8a;">ผู้รับเงิน / ผู้แทนฟ้าใสแมนชั่น</strong>
+      </div>
+    </div>
   `;
-  openModal('modal-bill-detail');
+
+  document.getElementById('contract-output').innerHTML = html; 
+  openModal('modal-print-contract');
 }

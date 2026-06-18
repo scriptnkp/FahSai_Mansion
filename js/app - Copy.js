@@ -44,7 +44,7 @@ const supabaseClient = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABA
 function getDirectDriveUrl(url) {
   if (!url || url === 'null' || url === '') return null;
   const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
+  if (match) return `https://lh3.googleusercontent.com/d/${match[1]}`;
   return url;
 }
 
@@ -76,14 +76,14 @@ async function loadSupabaseData() {
 
     const { data: billsData, error: errB } = await supabaseClient.from('bills').select('*');
     if(errB) throw errB;
-    
-    // 💡 ปรับแก้ตรงจุดนี้: เคลียร์ค่า STATE ให้ว่างก่อน เพื่อไม่ให้จำข้อมูลเก่าในเครื่องมาแสดงผล
-    STATE.bills = {};
+    if(billsData) {
+      const localBills = JSON.parse(localStorage.getItem('bills')) || {};
+      STATE.bills = localBills;
 
-    if(billsData && billsData.length > 0) {
       billsData.forEach(b => {
         const key = `${b.room_id}-${b.month_key}`;
         STATE.bills[key] = {
+          ...STATE.bills[key], 
           roomId: b.room_id, month: b.month_key, elecUnits: b.elec_units, waterUnits: b.water_units,
           elecAmt: b.elec_amt, waterAmt: b.water_amt, lateAmt: b.late_amt, total: b.total_amount,
           paid: b.is_paid, paidDate: b.paid_date
@@ -94,9 +94,6 @@ async function loadSupabaseData() {
         if(b.water_new !== undefined) STATE.bills[key].waterNew = b.water_new;
       });
     }
-    
-    // 💡 ปรับแก้ตรงจุดนี้: ซิงค์ให้ข้อมูลสำรองในเครื่อง (LocalStorage) ว่างเปล่าตาม Supabase ทันที
-    localStorage.setItem('bills', JSON.stringify(STATE.bills));
   } catch (e) { console.error("Load Data Error:", e); }
 }
 
@@ -106,8 +103,8 @@ async function saveState() {
     const tenantsPayload = STATE.allTenants.map(t => ({
       id: t.id, room_id: t.roomId, prefix: t.prefix, name: t.name, phone: t.phone, id_card: t.idNum,
       move_in_date: t.moveIn, move_out_date: t.moveOut, active: t.active, 
-      id_card_image_url: t.idCardImage ? t.idCardImage.replace('/thumbnail?id=', '/file/d/').replace('&sz=w1000', '/view') : null, 
-      tenant_photo_url: t.tenantImage ? t.tenantImage.replace('/thumbnail?id=', '/file/d/').replace('&sz=w1000', '/view') : null
+      id_card_image_url: t.idCardImage ? t.idCardImage.replace('https://lh3.googleusercontent.com/d/', 'https://drive.google.com/file/d/').replace(/\/?$/, '/view') : null, 
+      tenant_photo_url: t.tenantImage ? t.tenantImage.replace('https://lh3.googleusercontent.com/d/', 'https://drive.google.com/file/d/').replace(/\/?$/, '/view') : null
     }));
     if(tenantsPayload.length > 0) await supabaseClient.from('tenants').upsert(tenantsPayload, { onConflict: 'id' });
 
@@ -161,109 +158,11 @@ async function sendTelegram(msg) {
   } catch(e) { return false; }
 }
 
-function imgToBase64(url) {
-  if (!url) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        canvas.getContext('2d').drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
-      } catch { 
-        resolve(url); 
-      } 
-    };
-    img.onerror = () => resolve(url); 
-    img.src = url;
-  });
-}
-
-function printHidden(htmlContent, title = 'พิมพ์เอกสาร') {
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'absolute';
-  iframe.style.top = '-10000px';
-  iframe.style.left = '-10000px';
-  iframe.style.width = '0px';
-  iframe.style.height = '0px';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(`
-    <!DOCTYPE html>
-    <html lang="th">
-    <head>
-        <title>${title}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
-        <style>
-            @page { size: A4 portrait; margin: 10mm; } 
-            body { 
-                font-family: 'Sarabun', sans-serif; 
-                color: #1e293b; 
-                line-height: 1.4; 
-                font-size: 13px;
-                margin: 0; padding: 0;
-            }
-            .page-break { page-break-after: always; }
-            .fill { font-weight: bold; border-bottom: 1px dotted #94a3b8; padding: 0 5px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-            th, td { border: 1px solid #e2e8f0; padding: 6px 10px; }
-            th { background-color: #0284c7; color: white; text-align: left; }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            ul { margin: 2px 0 8px 25px; padding: 0; }
-            p { margin: 2px 0 8px 0; text-align: justify; }
-            
-            .image-box {
-                border: 2px dashed #94a3b8;
-                border-radius: 8px;
-                padding: 10px;
-                text-align: center;
-                min-height: 180px; 
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                background-color: #f8fafc;
-                box-sizing: border-box;
-                overflow: hidden;
-            }
-            .image-box img { max-width: 100%; max-height: 135px; object-fit: contain; border-radius: 4px; }
-            
-            @media print {
-              img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .image-box { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #f8fafc !important; }
-            }
-        </style>
-    </head>
-    <body>
-        ${htmlContent}
-    </body>
-    </html>
-  `);
-  doc.close();
-
-  setTimeout(() => {
-    iframe.contentWindow.focus();
-    iframe.contentWindow.print();
-    setTimeout(() => document.body.removeChild(iframe), 5000);
-  }, 1000);
-}
-
+// ── Add Tenant & Contract ──
 async function submitAddTenantAndContract() {
   const roomId = document.getElementById('add-tenant-room').value, prefix = document.getElementById('add-tenant-prefix').value;
   const name = document.getElementById('add-tenant-name').value.trim(), phone = document.getElementById('add-tenant-phone').value.trim();
-  const idNum = document.getElementById('add-tenant-id').value.trim(), moveIn = document.getElementById('add-tenant-movein').value;
-  
-  const place = document.getElementById('add-tenant-place').value;
-  const repName = document.getElementById('add-tenant-rep').value.trim();
-  localStorage.setItem('default_place', place);
-  localStorage.setItem('default_rep_name', repName);
-
+  const idNum = document.getElementById('add-tenant-id').value.trim(), moveIn = document.getElementById('add-tenant-movein').value, place = document.getElementById('add-tenant-place').value;
   if (!name) { toast('กรุณากรอกชื่อ', 'error'); return; }
 
   const btn = document.querySelector('button[onclick="submitAddTenantAndContract()"]'); btn.disabled = true; btn.textContent = '⏳ บีบอัดรูปและบันทึก...';
@@ -273,7 +172,7 @@ async function submitAddTenantAndContract() {
 
   const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
   const newTenant = { id: newId, roomId, prefix, name, phone, idNum, moveIn, active: true, idCardImage: idCardRes.url, tenantImage: tenantRes.url };
-  
+  // เก็บ base64 ไว้ใน localStorage เพื่อใช้พิมพ์สัญญา (แก้ปัญหา CORS Drive)
   if (idCardRes.b64) localStorage.setItem(`img_id_${newId}`, idCardRes.b64);
   if (tenantRes.b64) localStorage.setItem(`img_photo_${newId}`, tenantRes.b64);
   
@@ -287,10 +186,11 @@ async function submitAddTenantAndContract() {
   if (typeof renderTenantHistory === 'function') renderTenantHistory();
   
   btn.disabled = false; btn.textContent = '✅ บันทึกและสร้างสัญญา';
-  printContractFromHistory(newTenant.id); 
+  printContractFromHistory(newTenant.id); // เปิดพิมพ์อัตโนมัติ
 }
 
-function getContractHTML(t, place, repName) {
+// ── 💡 ฟังก์ชันสร้าง HTML สำหรับเอกสารสัญญา (แก้ให้พอดี 2 หน้า และโหลดรูปติดชัวร์) ──
+function getContractHTML(t, place) {
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png';
   const advAmount = CFG.RENT, totalFirst = CFG.DEPOSIT + advAmount;
   const b = n => Number(n).toLocaleString('th-TH');
@@ -300,98 +200,87 @@ function getContractHTML(t, place, repName) {
     return `${d.getDate()} เดือน ${m[d.getMonth()]} พ.ศ. ${d.getFullYear()+543}`;
   };
 
-  const repDisplay = repName ? `<strong><span style="border-bottom:1px dotted #94a3b8; padding:0 5px;">${repName}</span></strong>` : '............................................................................................';
-
+  // บีบ margin ให้กระชับขึ้น เพื่อไม่ให้ล้นไปหน้า 3
   return `
     <div style="font-family:'Sarabun', sans-serif; color:#1e293b; line-height: 1.5; padding: 0 10px;">
         <div style="display:flex; align-items:center; border-bottom:2px solid #2563eb; padding-bottom:8px; margin-bottom:12px;">
-          <img src="${LOGO_URL}" style="height:50px; margin-right:15px;" onerror="this.style.display='none'">
+          <img src="${LOGO_URL}" style="height:55px; margin-right:15px;" onerror="this.style.display='none'">
           <div>
-            <h2 style="color:#1e3a8a; margin:0; font-size:18px;">${CFG.MANSION_NAME} (Fah Sai Mansion)</h2>
-            <div style="font-size:12px; color:#475569;">${CFG.ADDRESS} | ติดต่อสำนักงาน: ${CFG.PHONE}</div>
+            <h2 style="color:#1e3a8a; margin:0; font-size: 20px;">${CFG.MANSION_NAME}</h2>
+            <div style="font-size:12px; color:#475569;">${CFG.ADDRESS} | โทร: ${CFG.PHONE}</div>
           </div>
         </div>
         
-        <h2 class="text-center" style="color:#1e3a8a; font-size:16px; margin-bottom:12px;">สัญญาเช่าห้องพักรายเดือน</h2>
+        <h2 style="text-align:center; color:#1e3a8a; font-size:16px; margin: 10px 0;">สัญญาเช่าห้องพักรายเดือน</h2>
         
-        <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-weight:bold;">
-          <div>ทำที่: <span class="fill" style="font-weight:normal">${place || CFG.MANSION_NAME}</span></div>
-          <div>วันที่: <span class="fill" style="font-weight:normal">${td(t.moveIn)}</span></div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px; font-weight:bold; font-size:13px;">
+          <div>ทำที่: <span style="font-weight:normal; border-bottom:1px dotted #94a3b8;">${place || CFG.MANSION_NAME}</span></div>
+          <div>วันที่: <span style="font-weight:normal; border-bottom:1px dotted #94a3b8;">${td(t.moveIn)}</span></div>
         </div>
         
-        <p style="text-indent: 40px;">
-          สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>${CFG.MANSION_NAME}</strong> โดย ${repDisplay} ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>"ผู้ให้เช่า"</strong> ฝ่ายหนึ่ง กับ <strong>${t.prefix || ''}</strong> <span class="fill">${t.name}</span> บัตรประจำตัวประชาชนเลขที่ <span class="fill">${t.idNum || '.........................'}</span> เบอร์โทรศัพท์ <span class="fill">${t.phone || '.........................'}</span> ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>"ผู้เช่า"</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายได้ตกลงทำสัญญาเช่ากันโดยมีข้อความและเงื่อนไขดังต่อไปนี้:
+        <p style="margin:0 0 10px 0; font-size: 13px; text-align: justify;">
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;สัญญาฉบับนี้ทำขึ้นระหว่าง <strong>${CFG.MANSION_NAME}</strong> โดย ............................................................................................ ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>"ผู้ให้เช่า"</strong> ฝ่ายหนึ่ง กับ <strong>${t.prefix || ''}</strong> <strong><span style="border-bottom:1px dotted #94a3b8;">${t.name}</span></strong> บัตรประชาชนเลขที่ <strong><span style="border-bottom:1px dotted #94a3b8;">${t.idNum || '.........................'}</span></strong> เบอร์โทรศัพท์ <strong><span style="border-bottom:1px dotted #94a3b8;">${t.phone || '.........................'}</span></strong> ซึ่งต่อไปในสัญญานี้เรียกว่า <strong>"ผู้เช่า"</strong> อีกฝ่ายหนึ่ง ทั้งสองฝ่ายได้ตกลงทำสัญญาเช่ากันโดยมีข้อความและเงื่อนไขดังต่อไปนี้:
         </p>
         
-        <div style="color:#0284c7; font-weight:bold; margin-top:8px;">ข้อ 1. วัตถุประสงค์และทรัพย์สินที่เช่า</div>
-        <p style="margin-left: 20px;">ผู้ให้เช่าตกลงให้เช่า และผู้เช่าตกลงเช่าห้องพักของ${CFG.MANSION_NAME} <strong>ห้องหมายเลข <span class="fill">${t.roomId}</span> ชั้นที่ <span class="fill">${t.roomId.charAt(0)}</span></strong> เพื่อใช้เป็นที่อยู่อาศัยส่วนตัวเท่านั้น ห้ามมิให้นำไปใช้เพื่อการพาณิชย์ หรือประกอบกิจการใดๆ ที่ผิดกฎหมาย หรือขัดต่อศีลธรรมอันดีงาม</p>
+        <div style="color:#0284c7; font-weight:bold; font-size: 13px; margin-top:8px;">ข้อ 1. วัตถุประสงค์และทรัพย์สินที่เช่า</div>
+        <p style="margin:2px 0 0 0; font-size: 13px; text-align: justify;">&nbsp;&nbsp;&nbsp;&nbsp;ผู้ให้เช่าตกลงให้เช่า และผู้เช่าตกลงเช่าห้องพักของ${CFG.MANSION_NAME} <strong>ห้องหมายเลข <span style="border-bottom:1px dotted #94a3b8;">${t.roomId}</span> ชั้นที่ <span style="border-bottom:1px dotted #94a3b8;">${t.roomId.charAt(0)}</span></strong> เพื่อใช้เป็นที่อยู่อาศัยส่วนตัวเท่านั้น ห้ามมิให้นำไปใช้เพื่อการพาณิชย์ หรือประกอบกิจการใดๆ ที่ผิดกฎหมาย หรือขัดต่อศีลธรรม</p>
         
-        <div style="color:#0284c7; font-weight:bold; margin-top:8px;">ข้อ 2. อัตราค่าเช่า เงินประกัน และการเข้าอยู่ครั้งแรก</div>
-        <ul style="margin: 2px 0 0 35px; padding: 0;">
+        <div style="color:#0284c7; font-weight:bold; font-size: 13px; margin-top:8px;">ข้อ 2. อัตราค่าเช่า เงินประกัน และการเข้าอยู่ครั้งแรก</div>
+        <ul style="margin: 2px 0 0 20px; padding: 0; font-size: 13px;">
           <li><strong>ค่าเช่าห้องพัก:</strong> คิดในอัตราเดือนละ <strong>${b(CFG.RENT)} บาท</strong></li>
           <li><strong>เงินประกันความเสียหายแรกเข้า:</strong> จำนวน <strong>${b(CFG.DEPOSIT)} บาท</strong></li>
           <li><strong>ค่าเช่าล่วงหน้า:</strong> จำนวน 1 เดือน เป็นเงิน <strong>${b(advAmount)} บาท</strong></li>
           <li><strong>รวมยอดชำระแรกเข้าทั้งสิ้น:</strong> จำนวน <strong>${b(totalFirst)} บาท</strong> ซึ่งผู้เช่าได้ชำระให้แก่ผู้ให้เช่าครบถ้วนแล้วในวันทำสัญญานี้</li>
         </ul>
         
-        <div style="color:#0284c7; font-weight:bold; margin-top:8px;">ข้อ 3. การคิดค่าน้ำประปาและค่าไฟฟ้า (สาธารณูปโภค)</div>
-        <ul style="margin: 2px 0 0 35px; padding: 0;">
+        <div style="color:#0284c7; font-weight:bold; font-size: 13px; margin-top:8px;">ข้อ 3. การคิดค่าน้ำประปาและค่าไฟฟ้า (สาธารณูปโภค)</div>
+        <ul style="margin: 2px 0 0 20px; padding: 0; font-size: 13px;">
           <li><strong>ค่าน้ำประปา:</strong> คิดในอัตราหน่วยละ <strong>${CFG.WATER_RATE} บาท</strong> โดยมีอัตราขั้นต่ำที่ <strong>${CFG.WATER_MIN} บาทต่อเดือน</strong></li>
           <li><strong>ค่าไฟฟ้า:</strong> คิดในอัตราหน่วยละ <strong>${CFG.ELEC_RATE} บาท</strong> ตามจำนวนหน่วยที่ใช้จริง ไม่มีขั้นต่ำ</li>
         </ul>
         
-        <div style="color:#0284c7; font-weight:bold; margin-top:8px;">ข้อ 4. กำหนดการชำระเงินและระบบค่าปรับชำระล่าช้า</div>
-        <p style="margin-left: 20px;">ผู้เช่าต้องชำระค่าเช่าห้องพักรวมถึงค่าน้ำ-ค่าไฟ <strong>ภายในวันที่ ${CFG.DUE_DAY} ของทุกเดือน</strong> หากเกินกำหนดเวลาดังกล่าว ให้ถือว่าผู้เช่าผิดนัดชำระและยินยอมปฏิบัติตามมาตรการดังต่อไปนี้:</p>
-        <ul style="margin: 2px 0 0 35px; padding: 0;">
-          <li><strong>การคิดค่าปรับ:</strong> หากชำระล่าช้าตั้งแต่วันที่ 6 เป็นต้นไป ผู้เช่าตกลงยินยอมเสียค่าปรับให้แก่ผู้ให้เช่าในอัตรา <strong>วันละ ${CFG.LATE_PER_DAY} บาท</strong> นับตั้งแต่วันที่ผิดนัดจนกว่าจะชำระเสร็จสิ้น</li>
+        <div style="color:#0284c7; font-weight:bold; font-size: 13px; margin-top:8px;">ข้อ 4. กำหนดการชำระเงินและระบบค่าปรับชำระล่าช้า</div>
+        <p style="margin:2px 0 2px 0; font-size: 13px; text-align: justify;">&nbsp;&nbsp;&nbsp;&nbsp;ผู้เช่าต้องชำระค่าเช่าห้องพักรวมถึงค่าน้ำ-ค่าไฟ <strong>ภายในวันที่ ${CFG.DUE_DAY} ของทุกเดือน</strong> หากเกินกำหนดเวลาดังกล่าว ให้ถือว่าผู้เช่าผิดนัดชำระและยินยอมปฏิบัติตามมาตรการดังต่อไปนี้:</p>
+        <ul style="margin: 0 0 0 20px; padding: 0; font-size: 13px;">
+          <li><strong>การคิดค่าปรับ:</strong> หากชำระล่าช้าตั้งแต่วันที่ 6 เป็นต้นไป ผู้เช่าตกลงยินยอมเสียค่าปรับให้แก่ผู้ให้เช่าในอัตรา <strong>วันละ ${CFG.LATE_PER_DAY} บาท</strong></li>
           <li><strong>มาตรการขั้นเด็ดขาด:</strong> หากผู้เช่าค้างชำระค่าเช่าหรือค่าปรับรวมกันเกินวันที่ <strong>${CFG.CUT_DAY} ของเดือน</strong> ผู้ให้เช่ามีสิทธิ์เด็ดขาดในการระงับการจ่ายน้ำประปาและไฟฟ้าภายในห้องพักดังกล่าวทันที รวมถึงมีสิทธิ์บอกเลิกสัญญาเช่าและเชิญผู้เช่าให้ออกจากห้องพักได้โดยมิต้องแจ้งล่วงหน้า</li>
         </ul>
         
-        <div style="color:#0284c7; font-weight:bold; margin-top:8px;">ข้อ 5. เงินประกันและความรับผิดชอบในความเสียหาย</div>
-        <p style="margin-left: 20px;">เงินประกันจำนวน ${b(CFG.DEPOSIT)} บาทนั้น ผู้ให้เช่าจะถือไว้เพื่อเป็นหลักประกันความเสียหายของห้องพักและอุปกรณ์ต่าง ๆ เมื่อผู้เช่าอยู่ครบตามกำหนดเวลาและประสงค์ย้ายออก ผู้ให้เช่าจะคืนเงินประกันนี้ให้โดยไม่มีดอกเบี้ย ภายในหลังจากหักลบค่าเสียหาย ค่าทำความสะอาด หรือค่าใช้จ่ายที่ผู้เช่าค้างชำระแล้ว (หากมี)</p>
+        <div style="color:#0284c7; font-weight:bold; font-size: 13px; margin-top:8px;">ข้อ 5. เงินประกันและความรับผิดชอบในความเสียหาย</div>
+        <p style="margin:2px 0 0 0; font-size: 13px; text-align: justify;">&nbsp;&nbsp;&nbsp;&nbsp;เงินประกันจำนวน ${b(CFG.DEPOSIT)} บาทนั้น ผู้ให้เช่าจะถือไว้เพื่อเป็นหลักประกันความเสียหายของห้องพักและอุปกรณ์ต่าง ๆ เมื่อผู้เช่าอยู่ครบตามกำหนดเวลาและประสงค์ย้ายออก ผู้ให้เช่าจะคืนเงินประกันนี้ให้โดยไม่มีดอกเบี้ย ภายในหลังจากหักลบค่าเสียหาย ค่าทำความสะอาด หรือค่าใช้จ่ายที่ผู้เช่าค้างชำระแล้ว (หากมี)</p>
         
-        <div class="page-break"></div>
+        <div style="page-break-after: always;"></div>
         
-        <div style="padding-top: 15px;">
-          <div style="color:#0284c7; font-weight:bold; margin-top:0;">ข้อ 6. การสิ้นสุดสัญญาเช่าและการย้ายออก</div>
-          <p style="margin-left: 20px; margin-bottom: 20px;">หากผู้เช่าประสงค์จะย้ายออกจากห้องพัก จะต้องแจ้งให้ผู้ให้เช่าทราบล่วงหน้าเป็นลายลักษณ์อักษรอย่างน้อย 30 วัน หากย้ายออกก่อนกำหนดโดยไม่แจ้งล่วงหน้า หรือทำผิดข้อสัญญาใดๆ ผู้ให้เช่ามีสิทธิ์ริบเงินประกันความเสียหายทั้งหมดทันที</p>
-          
-          <p class="text-center" style="font-weight:bold; margin-bottom: 30px;">สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความถูกต้องตรงกัน คู่สัญญาได้อ่านและเข้าใจข้อความโดยละเอียดตลอดแล้ว จึงได้ลงลายมือชื่อไว้เป็นหลักฐานต่อหน้าพยาน</p>
-          
-          <table style="border:none; margin-bottom: 20px; width: 100%;">
-            <tr>
-              <td style="border:none; text-align:center; width:50%;">
-                <div style="margin-bottom:5px;">( ${t.prefix || ''}${t.name} )</div>
-                <div style="font-weight:bold;">ผู้เช่า</div>
-                <div style="margin-top:40px;">( ............................................................ )</div>
-                <div style="margin-top:5px; color:#64748b;">พยาน</div>
-              </td>
-              <td style="border:none; text-align:center; width:50%;">
-                <div style="margin-bottom:5px;">( ${repName ? repName : '............................................................'} )</div>
-                <div style="font-weight:bold;">ผู้ให้เช่า (${CFG.MANSION_NAME})</div>
-                <div style="margin-top:40px;">( ............................................................ )</div>
-                <div style="margin-top:5px; color:#64748b;">พยาน</div>
-              </td>
-            </tr>
-          </table>
-          
-          <h3 style="color:#1e3a8a; font-size:14px; font-weight:bold; margin:0 0 12px 0; text-align:center;">เอกสารแนบ / รูปถ่ายผู้เช่า</h3>
-          <table style="border:none; width: 100%;">
-            <tr>
-              <td style="border:none; width:50%; padding-right:10px; vertical-align: top;">
-                <div class="image-box">
-                  <div style="font-size:12px; color:#1e3a8a; font-weight:bold; margin-bottom:8px;">สำเนาบัตรประชาชน</div>
-                  ${t.idCardImage ? `<img src="${t.idCardImage}">` : `<div style="color:#94a3b8; font-size:12px; margin-top:8px;">ไม่มีรูปแนบ</div>`}
-                </div>
-              </td>
-              <td style="border:none; width:50%; padding-left:10px; vertical-align: top;">
-                <div class="image-box">
-                  <div style="font-size:12px; color:#1e3a8a; font-weight:bold; margin-bottom:8px;">รูปถ่ายผู้เช่า</div>
-                  ${t.tenantImage ? `<img src="${t.tenantImage}">` : `<div style="color:#94a3b8; font-size:12px; margin-top:8px;">ไม่มีรูปแนบ</div>`}
-                </div>
-              </td>
-            </tr>
-          </table>
+        <div style="color:#0284c7; font-weight:bold; font-size: 13px; padding-top:15px;">ข้อ 6. การสิ้นสุดสัญญาเช่าและการย้ายออก</div>
+        <p style="margin:5px 0 20px 0; font-size: 13px; text-align: justify;">&nbsp;&nbsp;&nbsp;&nbsp;หากผู้เช่าประสงค์จะย้ายออกจากห้องพัก จะต้องแจ้งให้ผู้ให้เช่าทราบล่วงหน้าเป็นลายลักษณ์อักษรอย่างน้อย 30 วัน หากย้ายออกก่อนกำหนดโดยไม่แจ้งล่วงหน้า หรือทำผิดข้อสัญญาใดๆ ผู้ให้เช่ามีสิทธิ์ริบเงินประกันความเสียหายทั้งหมดทันที</p>
+        
+        <p style="text-align:center; font-weight:bold; font-size: 13px; margin-bottom:30px;">สัญญาฉบับนี้ทำขึ้นเป็นสองฉบับมีข้อความถูกต้องตรงกัน คู่สัญญาได้อ่านและเข้าใจข้อความโดยละเอียดตลอดแล้ว จึงได้ลงลายมือชื่อไว้เป็นหลักฐานต่อหน้าพยาน</p>
+        
+        <div style="display:flex; justify-content:space-around; text-align:center; font-size:13px; margin-bottom: 30px;">
+          <div style="width: 45%;">
+            <div style="margin-bottom:5px;">( ............................................................ )</div>
+            <div style="font-weight:bold;">ผู้เช่า</div>
+            <div style="margin-top:30px; margin-bottom:5px;">( ............................................................ )</div>
+            <div style="color:#64748b;">พยาน</div>
+          </div>
+          <div style="width: 45%;">
+            <div style="margin-bottom:5px;">( ............................................................ )</div>
+            <div style="font-weight:bold;">ผู้ให้เช่า (${CFG.MANSION_NAME})</div>
+            <div style="margin-top:30px; margin-bottom:5px;">( ............................................................ )</div>
+            <div style="color:#64748b;">พยาน</div>
+          </div>
+        </div>
+        
+        <h3 style="color:#1e3a8a; font-size:14px; font-weight:bold; margin:20px 0 12px 0; text-align:center;">เอกสารแนบ / รูปถ่ายผู้เช่า</h3>
+        <div style="display:flex; justify-content:space-between; gap: 20px;">
+          <div style="width:48%; border: 2px dashed #94a3b8; border-radius:8px; padding: 12px; text-align:center; background-color:#f8fafc; min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div style="font-size:12px; color:#1e3a8a; font-weight:bold; margin-bottom:8px;">สำเนาบัตรประชาชน</div>
+            ${t.idCardImage ? `<img src="${t.idCardImage}" style="max-height:200px; max-width:100%; object-fit:contain; border-radius:4px;" onerror="this.outerHTML='<div style=color:#94a3b8;font-size:12px>โหลดรูปไม่ได้</div>'">` : `<div style="color:#94a3b8; font-size:12px;">ไม่มีรูปแนบ</div>`}
+          </div>
+          <div style="width:48%; border: 2px dashed #94a3b8; border-radius:8px; padding: 12px; text-align:center; background-color:#f8fafc; min-height:220px; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <div style="font-size:12px; color:#1e3a8a; font-weight:bold; margin-bottom:8px;">รูปถ่ายผู้เช่า</div>
+            ${t.tenantImage ? `<img src="${t.tenantImage}" style="max-height:200px; max-width:100%; object-fit:contain; border-radius:4px;" onerror="this.outerHTML='<div style=color:#94a3b8;font-size:12px>โหลดรูปไม่ได้</div>'">` : `<div style="color:#94a3b8; font-size:12px;">ไม่มีรูปแนบ</div>`}
+          </div>
         </div>
     </div>
   `;
@@ -400,29 +289,34 @@ function getContractHTML(t, place, repName) {
 function printContractFromHistory(tenantId) {
   const t = STATE.allTenants.find(x => x.id === tenantId);
   if (!t) return;
-  
-  const place = localStorage.getItem('default_place') || CFG.MANSION_NAME;
-  const repName = localStorage.getItem('default_rep_name') || '';
-
+  // ดึง base64 จาก localStorage (เก็บตอน upload) — ไม่ติดปัญหา CORS Drive เลย
   const idCardB64 = localStorage.getItem(`img_id_${tenantId}`);
   const tenantB64 = localStorage.getItem(`img_photo_${tenantId}`);
-  const tPrint = { 
-    ...t,
+  const tPrint = { ...t,
     idCardImage: idCardB64 || t.idCardImage,
     tenantImage: tenantB64 || t.tenantImage
   };
-  
-  const htmlContent = getContractHTML(tPrint, place, repName);
-  
-  document.getElementById('contract-output').innerHTML = htmlContent;
-  openModal('modal-print-contract');
-  
-  const printBtn = document.querySelector('#modal-print-contract .btn-success');
-  if (printBtn) {
-    printBtn.onclick = function() {
-      printHidden(htmlContent, `สัญญาเช่าห้อง_${t.roomId}`);
-    };
-  }
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+      body { margin: 0; padding: 20px; font-family: 'Sarabun', sans-serif; }
+      @media print {
+        body { padding: 0; }
+        .no-print { display: none !important; }
+        img { -webkit-print-color-adjust: exact; print-color-adjust: exact; max-width: 100% !important; }
+        @page { margin: 15mm; }
+      }
+    </style>
+  </head><body>
+    <div class="no-print" style="text-align:center;margin-bottom:16px;">
+      <button onclick="window.print()" style="padding:10px 30px;background:#2563eb;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;font-family:Sarabun,sans-serif;">🖨 พิมพ์สัญญา</button>
+      <button onclick="window.close()" style="padding:10px 20px;margin-left:10px;background:#64748b;color:white;border:none;border-radius:6px;font-size:16px;cursor:pointer;font-family:Sarabun,sans-serif;">✕ ปิด</button>
+    </div>
+    ${getContractHTML(tPrint, CFG.MANSION_NAME)}
+  </body></html>`);
+  win.document.close();
 }
 
 // ── ระบบเปิด Popup รับเงิน ──
@@ -475,9 +369,8 @@ function executePrintInitialReceiptHTML(tenantId, receivedAmt) {
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png';
   const total = CFG.DEPOSIT + CFG.RENT, change = Math.max(0, receivedAmt - total);
   const dateStr = t.moveIn ? new Date(t.moveIn).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : today();
-  const repName = localStorage.getItem('default_rep_name') || '........................................................';
 
-  const htmlContent = `
+  const html = `
     <div style="display:flex; align-items:center; border-bottom:2px solid #2563eb; padding-bottom:10px; margin-bottom:20px; font-family:'Sarabun', sans-serif;">
       <img src="${LOGO_URL}" style="height:60px; margin-right:15px;" onerror="this.style.display='none'">
       <div>
@@ -503,20 +396,13 @@ function executePrintInitialReceiptHTML(tenantId, receivedAmt) {
         <strong style="color:#1e3a8a;">ผู้จ่ายเงิน / ผู้เช่า</strong>
       </div>
       <div>
-        <div style="margin-bottom:8px;">( ${repName} )</div>
+        <div style="margin-bottom:8px;">( ........................................................ )</div>
         <strong style="color:#1e3a8a;">ผู้รับเงิน / ผู้แทนแมนชั่น</strong>
       </div>
     </div>`;
     
-  document.getElementById('contract-output').innerHTML = htmlContent; 
+  document.getElementById('contract-output').innerHTML = html; 
   openModal('modal-print-contract');
-  
-  const printBtn = document.querySelector('#modal-print-contract .btn-success');
-  if (printBtn) {
-    printBtn.onclick = function() {
-      printHidden(htmlContent, `ใบเสร็จแรกเข้า_${t.roomId}`);
-    };
-  }
 }
 
 function renderTenantHistory() {

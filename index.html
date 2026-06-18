@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <link rel="stylesheet" href="css/style.css">
 <style>
   .contract-sheet { background: #fff; padding: 40px; font-size: 14px; line-height: 1.7; color: var(--gray-800); max-width: 900px; margin: 0 auto; box-shadow: var(--shadow-lg);}
@@ -98,32 +97,45 @@
               <div id="form-tenant-info"></div>
 
               <div class="form-row">
-                <div class="form-group"><label class="form-label">⚡ เลขไฟเดิม</label><input type="number" class="form-control" id="elec-old" min="0"></div>
-                <div class="form-group"><label class="form-label">⚡ เลขไฟใหม่</label><input type="number" class="form-control" id="elec-new" min="0"></div>
+                <div class="form-group">
+                  <label class="form-label" style="color:var(--gray-500)">⚡ เลขไฟเดิม</label>
+                  <input type="number" class="form-control" id="elec-old" min="0" style="background:var(--gray-50)">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="color:var(--gray-500)">💧 เลขน้ำเดิม</label>
+                  <input type="number" class="form-control" id="water-old" min="0" style="background:var(--gray-50)">
+                </div>
               </div>
+
               <div class="form-row">
-                <div class="form-group"><label class="form-label">💧 เลขน้ำเดิม</label><input type="number" class="form-control" id="water-old" min="0"></div>
-                <div class="form-group"><label class="form-label">💧 เลขน้ำใหม่</label><input type="number" class="form-control" id="water-new" min="0"></div>
+                <div class="form-group">
+                  <label class="form-label" style="color:var(--sky-dk); font-weight:700;">⚡ เลขไฟใหม่</label>
+                  <input type="number" class="form-control" id="elec-new" min="0" style="border: 2px solid var(--sky);">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="color:var(--sky-dk); font-weight:700;">💧 เลขน้ำใหม่</label>
+                  <input type="number" class="form-control" id="water-new" min="0" style="border: 2px solid var(--sky);">
+                </div>
               </div>
+              
               <div class="form-row">
                 <div class="form-group"><label class="form-label">⚠️ ค่าปรับล่าช้า (วัน)</label><input type="number" class="form-control" id="late-days" min="0" value="0"></div>
-                <div class="form-group"><label class="form-label">💵 รับเงินมา (บาท)</label><input type="number" class="form-control" id="received-amount" placeholder="เว้นว่างถ้ารับพอดี"></div>
-              </div>
-              <div class="form-group">
+                <div class="form-group">
+                  <label class="form-label">ประเภทผู้เช่า</label>
                   <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
                     <input type="checkbox" id="is-new-tenant" style="width:20px;height:20px;">
-                    <label for="is-new-tenant" style="font-size:14px;cursor:pointer">ออกบิลแบบรวมมัดจำสำหรับผู้เช่าใหม่</label>
+                    <label for="is-new-tenant" style="font-size:14px;cursor:pointer">ออกบิลแบบรวมค่าแรกเข้า (สำหรับผู้เช่าใหม่)</label>
                   </div>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="card">
             <div class="card-header">
-              <span class="card-title">👁 ตัวอย่างบิล / ใบเสร็จ</span>
+              <span class="card-title">👁 ตัวอย่างบิล / ใบแจ้งหนี้</span>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
                 <button class="btn btn-success btn-sm" id="btn-save-bill" disabled>💾 บันทึกบิล</button>
-                <button class="btn btn-outline btn-sm" id="btn-export-img" disabled>📸 บันทึกรูป</button>
                 <button class="btn btn-outline btn-sm" id="btn-send-tg-bill" disabled>📤 ส่ง Telegram</button>
               </div>
             </div>
@@ -140,7 +152,7 @@
           <div class="card-body">
             <div class="table-wrap">
               <table class="data-table">
-                <thead><tr><th>ห้อง</th><th>ชื่อ-สกุล</th><th>เบอร์โทร</th><th>วันเข้าอยู่</th><th>วันย้ายออก</th><th>สถานะ</th><th>เอกสารแนบ</th></tr></thead>
+                <thead><tr><th>ห้อง</th><th>ชื่อ-สกุล</th><th>เบอร์โทร</th><th>วันเข้าอยู่</th><th>วันย้ายออก</th><th>สถานะ</th><th>เอกสาร/สัญญา</th></tr></thead>
                 <tbody id="tenant-history-tbody"><tr><td colspan="7" style="text-align:center;color:var(--gray-400);padding:20px">กำลังโหลดข้อมูล...</td></tr></tbody>
               </table>
             </div>
@@ -152,7 +164,6 @@
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
           <div style="display:flex;align-items:center;gap:10px"><label class="form-label" style="margin:0">เดือน:</label><select class="form-control" id="report-month-select" style="width:auto;min-width:180px"></select></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-outline btn-sm" onclick="exportReportImage()">📸 บันทึกรูป</button>
             <button class="btn btn-outline btn-sm" onclick="sendReportTelegram()">📤 ส่ง TG</button>
             <button class="btn btn-danger btn-sm" onclick="sendAllOverdueTelegram()">⚠️ แจ้งค้างชำระ</button>
           </div>
@@ -197,7 +208,10 @@
             </div>
             <div class="settings-section">
               <h3>🏢 ตั้งค่าชั้นและห้องพัก</h3>
-              <div class="form-group"><label class="form-label">รูปแบบห้องพัก (1 บรรทัดต่อ 1 ชั้น)</label><textarea class="form-control" id="cfg-rooms-text" rows="5"></textarea></div>
+              <div class="form-group">
+                <label class="form-label">รูปแบบห้องพัก (1 บรรทัดต่อ 1 ชั้น คั่นชื่อและห้องด้วย : คั่นห้องด้วย ,)</label>
+                <textarea class="form-control" id="cfg-rooms-text" rows="5" placeholder="ชั้น 1: 101, 102, 103..."></textarea>
+              </div>
             </div>
             <div class="settings-section">
               <h3>🏠 ข้อมูลการเงินหอพัก</h3>
@@ -242,8 +256,14 @@
         <div class="form-group"><label class="form-label">วันที่เข้าอยู่ / ทำสัญญา</label><input type="date" class="form-control" id="add-tenant-movein"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">📸 อัปโหลดบัตรประชาชน (ขนาด < 1MB)</label><input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;"></div>
-        <div class="form-group"><label class="form-label">📸 อัปโหลดรูปถ่ายผู้เช่า (ขนาด < 1MB)</label><input type="file" class="form-control" id="add-tenant-photo-img" accept="image/*" style="padding: 6px;"></div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label class="form-label">ผู้ทำสัญญา (ตัวแทนฟ้าใสแมนชั่น)</label>
+          <input type="text" class="form-control" id="add-tenant-rep" placeholder="เช่น นาย/นาง... (จะไปแสดงในเอกสารสัญญาอัตโนมัติ)">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">📸 บัตรประชาชน (ขนาดแนะนำ < 1MB)</label><input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;"></div>
+        <div class="form-group"><label class="form-label">📸 รูปถ่ายผู้เช่า (ขนาดแนะนำ < 1MB)</label><input type="file" class="form-control" id="add-tenant-photo-img" accept="image/*" style="padding: 6px;"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -253,21 +273,47 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-pay-bill">
+  <div class="modal" style="max-width: 420px; border-radius:16px;">
+    <div class="modal-header" style="background:var(--sky); color:white; border-radius:14px 14px 0 0;"><span class="modal-title">💵 บันทึกการรับชำระเงิน</span><button class="modal-close" style="color:white; background:transparent;" data-close-modal="modal-pay-bill">✕</button></div>
+    <div class="modal-body" style="padding:24px;">
+      <input type="hidden" id="pay-bill-type"> 
+      <input type="hidden" id="pay-bill-tenant-id">
+      
+      <div style="text-align:center; margin-bottom:20px;">
+        <div id="pay-bill-title" style="font-size:16px; color:var(--gray-600);">ห้องพักหมายเลข</div>
+        <div id="pay-bill-total" style="font-size:36px; font-weight:800; color:var(--sky-dk); margin:8px 0;">0.00</div>
+        <div style="font-size:13px; color:var(--gray-400);">จำนวนเงินที่ต้องชำระทั้งสิ้น (บาท)</div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px;">
+        <label class="form-label" style="font-weight:700; color:var(--gray-700)">💵 จำนวนเงินที่รับมา</label>
+        <input type="number" class="form-control" id="pay-bill-received" style="font-size:20px; font-weight:700; text-align:center; height:50px; border:2px solid var(--sky);" placeholder="0.00">
+      </div>
+
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px; text-align:center;">
+        <div style="font-size:13px; color:#16a34a; font-weight:600;">💰 เงินทอน</div>
+        <div id="pay-bill-change" style="font-size:24px; font-weight:800; color:#15803d; margin-top:4px;">0.00</div>
+      </div>
+    </div>
+    <div class="modal-footer" style="background:#f8fafc; border-radius: 0 0 14px 14px;">
+      <button class="btn btn-outline" data-close-modal="modal-pay-bill">ยกเลิก</button>
+      <button class="btn btn-success" onclick="processPaymentConfirm()">✅ ยืนยันรับเงิน</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-print-contract" style="background: rgba(0,0,0,0.8);">
   <div class="modal" style="max-width: 1000px; max-height: 95vh; display: flex; flex-direction: column;">
     <div class="modal-header no-print">
       <span class="modal-title">👁 ตัวอย่างเอกสาร (พร้อมพิมพ์)</span>
       <div style="display:flex; gap:10px;">
-        <button class="btn btn-success btn-sm" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+        <button class="btn btn-success btn-sm">🖨 พิมพ์ / บันทึก PDF</button>
         <button class="modal-close" data-close-modal="modal-print-contract">✕</button>
       </div>
     </div>
-    <div class="modal-body contract-sheet" id="contract-output" style="flex:1; overflow-y:auto; border-radius: 0 0 12px 12px;"></div>
+    <div class="modal-body contract-sheet" id="contract-output" style="flex:1; overflow-y:auto; border-radius: 0 0 12px 12px; background:white;"></div>
   </div>
-</div>
-
-<div class="modal-overlay" id="modal-bill-detail">
-  <div class="modal"><div class="modal-header"><span class="modal-title">🧾 รายละเอียดบิล</span><button class="modal-close" data-close-modal="modal-bill-detail">✕</button></div><div class="modal-body" id="history-bill-detail"></div></div>
 </div>
 
 <script src="js/app.js"></script>
@@ -296,6 +342,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function loadSettings() {
   document.getElementById('cfg-tg-token').value = localStorage.getItem('tg_token') || '';
   document.getElementById('cfg-tg-chat').value  = localStorage.getItem('tg_chat') || '';
+  document.getElementById('cfg-rooms-text').value = CFG.ROOMS_TEXT;
   document.getElementById('cfg-rent').value      = CFG.RENT;
   document.getElementById('cfg-elec').value      = CFG.ELEC_RATE;
   document.getElementById('cfg-water').value     = CFG.WATER_RATE;
@@ -303,7 +350,10 @@ function loadSettings() {
   document.getElementById('cfg-late').value      = CFG.LATE_PER_DAY;
   document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
   document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
-  document.getElementById('cfg-rooms-text').value = CFG.ROOMS_TEXT;
+  
+  // 💡 โหลดชื่อผู้ทำสัญญาที่เคยกรอกไว้มาแสดงอัตโนมัติ
+  document.getElementById('add-tenant-rep').value = localStorage.getItem('default_rep_name') || '';
+  document.getElementById('add-tenant-place').value = localStorage.getItem('default_place') || 'ฟ้าใสแมนชั่น';
 }
 
 function saveSettings() {

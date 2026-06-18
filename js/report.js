@@ -68,7 +68,7 @@ function buildReport(mk) {
       <td class="text-right"><strong>${fmt(bill.total)}</strong></td>
       <td>
         <span class="badge badge-${bill.paid ? 'success' : 'danger'}">${bill.paid ? '✅ ชำระแล้ว' : '⏳ ค้างชำระ'}</span>
-        ${!bill.paid ? `<button class="btn btn-success btn-sm" style="margin-top:4px" onclick="markPaid('${roomId}').then(() => renderReport())">รับเงิน</button>` : ''}
+        ${!bill.paid ? `<button class="btn btn-success btn-sm" style="margin-top:4px" onclick="markPaid('${roomId}')">รับเงิน</button>` : ''}
       </td>
     </tr>
   `).join('');

@@ -11,105 +11,102 @@ function initForm() {
 
   sel.addEventListener('change', () => onRoomChange(sel.value));
 
-  ['elec-old','elec-new','water-old','water-new','late-days','received-amount'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('input', recalcBill);
+  ['elec-old','elec-new','water-old','water-new','late-days'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.addEventListener('input', recalcBill);
   });
   
-  const isNewEl = document.getElementById('is-new-tenant');
-  if(isNewEl) isNewEl.addEventListener('change', recalcBill);
-
+  const isNewEl = document.getElementById('is-new-tenant'); if(isNewEl) isNewEl.addEventListener('change', recalcBill);
   document.getElementById('btn-save-bill').addEventListener('click', saveBill);
-  document.getElementById('btn-export-img').addEventListener('click', () => {
-    const r = document.getElementById('room-select').value;
-    if (r) exportBillImage(r);
-  });
   document.getElementById('btn-send-tg-bill').addEventListener('click', sendBillTelegram);
 
   clearBillForm();
 }
 
 function onRoomChange(roomId) {
-  clearBillForm();
-  if (!roomId) return;
-  const tenant = STATE.tenants[roomId];
-  const mk = monthKey();
-  const existing = STATE.bills[`${roomId}-${mk}`];
+  clearBillForm(); if (!roomId) return;
+  const tenant = STATE.tenants[roomId], mk = monthKey(), existing = STATE.bills[`${roomId}-${mk}`];
 
   const infoEl = document.getElementById('form-tenant-info');
   if (tenant?.active) {
-    infoEl.innerHTML = `
-      <div class="alert alert-info" style="align-items: center;">
-        ${tenant.idCardImage ? `<div style="width:32px;height:32px;background:url('${tenant.idCardImage}') center/cover;border-radius:4px;"></div>` : `<span>👤</span>`}
-        <div><strong>${tenant.name}</strong> · ${tenant.phone || '-'}<br>
-        <span style="font-size:12px">เข้าอยู่: ${tenant.moveIn || '-'}</span></div>
-      </div>`;
+    infoEl.innerHTML = `<div class="alert alert-info" style="align-items:center;"><span>👤</span><div><strong>${tenant.name}</strong> · ${tenant.phone || '-'}<br><span style="font-size:12px">เข้าอยู่: ${tenant.moveIn || '-'}</span></div></div>`;
     document.getElementById('is-new-tenant').checked = false;
   } else {
-    infoEl.innerHTML = `<div class="alert alert-warning"><span>⚠️</span> ห้องว่าง — กรุณาเพิ่มผู้เช่าในหน้าภาพรวมก่อน</div>`;
+    infoEl.innerHTML = `<div class="alert alert-warning"><span>⚠️</span> ห้องว่าง — เพิ่มผู้เช่าในหน้าภาพรวมก่อน</div>`;
     document.getElementById('is-new-tenant').checked = true;
   }
 
-  const prevMk = getPrevMonthKey();
-  const prevBill = STATE.bills[`${roomId}-${prevMk}`];
+  // 💡 โค้ดใหม่: จะไม่ดึงเอา "จำนวนหน่วยที่ใช้ (elecUnits)" มาใส่เป็นเลขมิเตอร์เด็ดขาด ป้องกันบั๊กเลข 20/30 โผล่มา
+  const prevMk = getPrevMonthKey(), prevBill = STATE.bills[`${roomId}-${prevMk}`];
   if (prevBill) {
-    document.getElementById('elec-old').value = prevBill.elecNew || prevBill.elecUnits || '';
-    document.getElementById('water-old').value = prevBill.waterNew || prevBill.waterUnits || '';
+    document.getElementById('elec-old').value = prevBill.elecNew !== undefined ? prevBill.elecNew : '';
+    document.getElementById('water-old').value = prevBill.waterNew !== undefined ? prevBill.waterNew : '';
   }
   if (existing) {
-    document.getElementById('elec-old').value = existing.elecOld || existing.elecUnits || '';
-    document.getElementById('elec-new').value  = existing.elecNew || existing.elecUnits || '';
-    document.getElementById('water-old').value = existing.waterOld || existing.waterUnits || '';
-    document.getElementById('water-new').value  = existing.waterNew || existing.waterUnits || '';
+    document.getElementById('elec-old').value = existing.elecOld !== undefined ? existing.elecOld : '';
+    document.getElementById('elec-new').value  = existing.elecNew !== undefined ? existing.elecNew : '';
+    document.getElementById('water-old').value = existing.waterOld !== undefined ? existing.waterOld : '';
+    document.getElementById('water-new').value  = existing.waterNew !== undefined ? existing.waterNew : '';
     document.getElementById('late-days').value  = existing.lateDays || 0;
   }
-  
-  document.getElementById('received-amount').value = ''; // เคลียร์ยอดรับเงินทุกครั้งที่เปลี่ยนห้อง
   recalcBill();
 }
 
-function getPrevMonthKey() {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  return monthKey(d);
-}
+function getPrevMonthKey() { const d = new Date(); d.setMonth(d.getMonth() - 1); return monthKey(d); }
 
 function clearBillForm() {
   document.getElementById('form-tenant-info').innerHTML = '';
-  document.getElementById('bill-preview').innerHTML = `<div style="text-align:center;color:var(--gray-400);padding:40px 0;font-size:14px">📋 เลือกห้องและกรอกเลขมิเตอร์เพื่อดูบิล</div>`;
-  document.getElementById('btn-save-bill').disabled = true;
-  document.getElementById('btn-export-img').disabled = true;
-  document.getElementById('btn-send-tg-bill').disabled = true;
+  document.getElementById('bill-preview').innerHTML = `<div style="text-align:center;color:var(--gray-400);padding:40px 0;">📋 เลือกห้องและกรอกเลขมิเตอร์เพื่อดูบิล</div>`;
+  document.getElementById('btn-save-bill').disabled = true; document.getElementById('btn-send-tg-bill').disabled = true;
+  
+  document.getElementById('elec-old').value = '';
+  document.getElementById('elec-new').value = '';
+  document.getElementById('water-old').value = '';
+  document.getElementById('water-new').value = '';
+  document.getElementById('late-days').value = '0';
 }
 
 function recalcBill() {
-  const roomId   = document.getElementById('room-select').value;
-  if (!roomId) return;
-
-  const elecOld  = parseFloat(document.getElementById('elec-old').value) || 0;
-  const elecNew  = parseFloat(document.getElementById('elec-new').value) || 0;
+  const roomId = document.getElementById('room-select').value; if (!roomId) return;
+  
+  const elecNewStr = document.getElementById('elec-new').value.trim();
+  const waterNewStr = document.getElementById('water-new').value.trim();
+  
+  const elecOld = parseFloat(document.getElementById('elec-old').value) || 0;
   const waterOld = parseFloat(document.getElementById('water-old').value) || 0;
-  const waterNew = parseFloat(document.getElementById('water-new').value) || 0;
-  const lateDays = parseInt(document.getElementById('late-days').value) || 0;
-  const isNew    = document.getElementById('is-new-tenant').checked;
 
-  if (elecNew > 0 && elecNew < elecOld || waterNew > 0 && waterNew < waterOld) {
-    document.getElementById('bill-preview').innerHTML = `<div class="alert alert-danger">⚠️ เลขมิเตอร์ใหม่ต้องมากกว่าหรือเท่ากับเลขเก่า</div>`;
+  const hasElecNew = elecNewStr !== '';
+  const hasWaterNew = waterNewStr !== '';
+
+  const elecNew = hasElecNew ? parseFloat(elecNewStr) : 0;
+  const waterNew = hasWaterNew ? parseFloat(waterNewStr) : 0;
+
+  // 💡 ดักจับ Error เฉพาะตอนที่ผู้ใช้พิมพ์ตัวเลขเข้าไปแล้ว และค่าน้อยกว่าของเก่าจริงๆ
+  if ((hasElecNew && elecNew < elecOld) || (hasWaterNew && waterNew < waterOld)) {
+    document.getElementById('bill-preview').innerHTML = `<div class="alert alert-danger">⚠️ เลขมิเตอร์ใหม่ต้องมากกว่าหรือเท่ากับเลขเก่า</div>`; 
+    document.getElementById('btn-save-bill').disabled = true;
+    document.getElementById('btn-send-tg-bill').disabled = true;
     return;
   }
 
-  const bill = calcBill({ elecOld, elecNew, waterOld, waterNew, lateDays, isNew });
+  // คำนวณความต่าง
+  const elecDiff = hasElecNew ? Math.max(0, elecNew - elecOld) : null;
+  const waterDiff = hasWaterNew ? Math.max(0, waterNew - waterOld) : null;
+
+  // คำนวณยอดเงิน
+  const elecAmt = hasElecNew ? (elecDiff * CFG.ELEC_RATE) : 0;
+  const waterAmt = hasWaterNew ? Math.max(waterDiff * CFG.WATER_RATE, CFG.WATER_MIN) : 0;
+
+  const lateDays = parseInt(document.getElementById('late-days').value) || 0;
+  const lateAmt = lateDays * CFG.LATE_PER_DAY;
+
+  const isNew = document.getElementById('is-new-tenant').checked;
+  const depositAmt = isNew ? CFG.DEPOSIT : 0;
+  const advanceAmt = isNew ? CFG.RENT : 0;
+
+  const total = CFG.RENT + elecAmt + waterAmt + lateAmt + depositAmt + advanceAmt;
+
   const tenant = STATE.tenants[roomId] || {};
   const mk = monthKey();
-
-  const elecDiff  = elecNew - elecOld;
-  const waterDiff = waterNew - waterOld;
-
-  // คำนวณเงินทอน
-  const receivedInput = parseFloat(document.getElementById('received-amount').value);
-  const received = isNaN(receivedInput) ? bill.total : receivedInput;
-  const change = Math.max(0, received - bill.total);
-
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png'; 
 
   document.getElementById('bill-preview').innerHTML = `
@@ -121,7 +118,7 @@ function recalcBill() {
       </div>
     </div>
 
-    <h3 style="text-align:center; color:#1e3a8a; margin-bottom:24px; font-size:17px;">ใบเสร็จรับเงิน / ใบแจ้งหนี้ (Receipt / Invoice)</h3>
+    <h3 style="text-align:center; color:#1e3a8a; margin-bottom:24px; font-size:17px;">ใบแจ้งหนี้ (Invoice)</h3>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; font-size:14px;">
       <div><strong>ชื่อผู้เช่า:</strong> ${tenant.name || '.............................................'}</div>
@@ -151,52 +148,40 @@ function recalcBill() {
         </tr>
         <tr>
           <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">2</td>
-          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าไฟฟ้า (Electricity)<br><span style="font-size:11.5px; color:#64748b;">[ เลขมิเตอร์ใหม่: ${elecNew || '......'} - เลขมิเตอร์เดิม: ${elecOld || '......'} ]</span></td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmtInt(elecDiff) || '............'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าไฟฟ้า (Electricity)<br><span style="font-size:11.5px; color:#64748b;">[ เลขมิเตอร์ใหม่: ${hasElecNew ? elecNew : '......'} - เลขมิเตอร์เดิม: ${elecOld} ]</span></td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${hasElecNew ? fmtInt(elecDiff) : '............'}</td>
           <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.ELEC_RATE.toFixed(2)}</td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${elecDiff > 0 ? fmt(bill.elecAmt) : '........................'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${hasElecNew ? fmt(elecAmt) : '........................'}</td>
         </tr>
         <tr>
           <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">3</td>
-          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าน้ำประปา (Water)<br><span style="font-size:11.5px; color:#64748b;">[ เลขมิเตอร์ใหม่: ${waterNew || '......'} - เลขมิเตอร์เดิม: ${waterOld || '......'} ] *ขั้นต่ำ 100 บ.</span></td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmtInt(waterDiff) || '............'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าน้ำประปา (Water)<br><span style="font-size:11.5px; color:#64748b;">[ เลขมิเตอร์ใหม่: ${hasWaterNew ? waterNew : '......'} - เลขมิเตอร์เดิม: ${waterOld} ] *ขั้นต่ำ ${CFG.WATER_MIN} บ.</span></td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${hasWaterNew ? fmtInt(waterDiff) : '............'}</td>
           <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.WATER_RATE.toFixed(2)}</td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${waterDiff > 0 ? fmt(bill.waterAmt) : '........................'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${hasWaterNew ? fmt(waterAmt) : '........................'}</td>
         </tr>
+        ${lateDays > 0 ? `
         <tr>
           <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">4</td>
-          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าปรับชำระล่าช้า (Late Payment Penalty) <span style="font-size:11.5px; color:#64748b;">(ตั้งแต่วันที่ 6 เป็นต้นไป)</span></td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${lateDays > 0 ? lateDays + ' วัน' : '............'}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0;">ค่าปรับชำระล่าช้า (Late Payment Penalty)</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${lateDays} วัน</td>
           <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${CFG.LATE_PER_DAY.toFixed(2)}</td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${lateDays > 0 ? fmt(bill.lateAmt) : '........................'}</td>
-        </tr>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(lateAmt)}</td>
+        </tr>` : ''}
+        ${isNew ? `
         <tr>
           <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">5</td>
-          <td style="padding:10px; border:1px solid #e2e8f0;">เงินประกันแรกเข้า / ค่าเช่าล่วงหน้า <span style="font-size:11.5px; color:#64748b;">(เฉพาะผู้เช่าใหม่)</span></td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${isNew ? '1' : '............'}</td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${isNew ? fmt(bill.depositAmt + bill.advanceAmt) : '........................'}</td>
-          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${isNew ? fmt(bill.depositAmt + bill.advanceAmt) : '........................'}</td>
-        </tr>
+          <td style="padding:10px; border:1px solid #e2e8f0;">เงินประกันแรกเข้า / ค่าเช่าล่วงหน้า</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">1</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:center;">${fmt(depositAmt + advanceAmt)}</td>
+          <td style="padding:10px; border:1px solid #e2e8f0; text-align:right;">${fmt(depositAmt + advanceAmt)}</td>
+        </tr>` : ''}
         <tr style="background-color:#f8fafc; font-weight:bold;">
           <td colspan="4" style="padding:12px 10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a; font-size:14px;">รวมยอดเงินที่ต้องชำระทั้งสิ้น (Total Amount Due)</td>
-          <td style="padding:12px 10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a; font-size:14px; text-decoration: underline;">${fmt(bill.total)}</td>
-        </tr>
-        <tr>
-          <td colspan="4" style="padding:8px 10px; border:1px solid #e2e8f0; text-align:right; color:#475569;">รับเงินมา (Received)</td>
-          <td style="padding:8px 10px; border:1px solid #e2e8f0; text-align:right; color:#475569;">${fmt(received)}</td>
-        </tr>
-        <tr>
-          <td colspan="4" style="padding:8px 10px; border:1px solid #e2e8f0; text-align:right; color:#16a34a; font-weight:bold;">เงินทอน (Change)</td>
-          <td style="padding:8px 10px; border:1px solid #e2e8f0; text-align:right; color:#16a34a; font-weight:bold;">${fmt(change)}</td>
+          <td style="padding:12px 10px; border:1px solid #e2e8f0; text-align:right; color:#1e3a8a; font-size:14px; text-decoration: underline;">${fmt(total)}</td>
         </tr>
       </tbody>
     </table>
-
-    <div style="background-color:#fefce8; border:1px dashed #ca8a04; border-radius:6px; padding:12px 16px; margin-bottom:32px; font-size:12px; color:#854d0e;">
-      <strong style="font-size:13px;">💡 หมายเหตุการชำระเงิน:</strong><br>
-      1. กรุณาชำระเงินภายในวันที่ <strong>${CFG.DUE_DAY}</strong> ของเดือน หากชำระตั้งแต่วันที่ 6 เป็นต้นไป ระบบจะคิดค่าปรับวันละ <strong>${CFG.LATE_PER_DAY}</strong> บาทอัตโนมัติ<br>
-      2. หากค้างชำระเกินวันที่ <strong>${CFG.CUT_DAY}</strong> ทางหอพักขอสงวนสิทธิ์งดจ่ายน้ำ-ไฟ และดำเนินการตามข้อตกลงในสัญญาเช่าทันที
-    </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:40px; text-align:center; font-size:14px; margin-bottom:32px;">
       <div>
@@ -210,43 +195,36 @@ function recalcBill() {
     </div>
   `;
 
-  // Store draft
   window._currentBillDraft = { 
-    roomId, elecOld, elecNew, waterOld, waterNew, lateDays, isNew, 
-    ...bill, month: mk 
+    roomId, 
+    elecOld, elecNew: hasElecNew ? elecNew : elecOld, elecUnits: elecDiff || 0, elecAmt,
+    waterOld, waterNew: hasWaterNew ? waterNew : waterOld, waterUnits: waterDiff || 0, waterAmt,
+    lateDays, lateAmt, 
+    isNew, depositAmt, advanceAmt, 
+    total, month: mk 
   };
-
-  document.getElementById('btn-save-bill').disabled = false;
-  document.getElementById('btn-export-img').disabled = false;
-  document.getElementById('btn-send-tg-bill').disabled = false;
+  
+  // 💡 ปุ่มเซฟจะกดได้ก็ต่อเมื่อกรอกเลขมิเตอร์ครบทั้ง 2 ช่องแล้วเท่านั้น
+  if (hasElecNew && hasWaterNew) {
+    document.getElementById('btn-save-bill').disabled = false; 
+    document.getElementById('btn-send-tg-bill').disabled = false;
+  } else {
+    document.getElementById('btn-save-bill').disabled = true; 
+    document.getElementById('btn-send-tg-bill').disabled = true;
+  }
 }
 
 async function saveBill() {
-  const d = window._currentBillDraft;
-  if (!d) return;
-
-  const btn = document.getElementById('btn-save-bill');
-  btn.disabled = true;
-  btn.textContent = '⏳ กำลังบันทึก...';
-
-  const key = `${d.roomId}-${d.month}`;
-  STATE.bills[key] = { ...d, paid: false, createdAt: isoDate() };
-  
-  await saveState(); // บันทึกลง Supabase
-
-  toast(`บันทึกบิลห้อง ${d.roomId} เรียบร้อย`, 'success');
-  btn.textContent = '✅ บันทึกแล้ว';
-  setTimeout(() => { 
-    btn.textContent = '💾 บันทึกบิล'; 
-    btn.disabled = false;
-  }, 2000);
+  const d = window._currentBillDraft; if (!d) return;
+  const btn = document.getElementById('btn-save-bill'); btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+  const key = `${d.roomId}-${d.month}`; STATE.bills[key] = { ...d, paid: false, createdAt: isoDate() };
+  await saveState(); toast(`บันทึกบิลห้อง ${d.roomId} เรียบร้อย`, 'success');
+  btn.textContent = '✅ บันทึกแล้ว'; setTimeout(() => { btn.textContent = '💾 บันทึกบิล'; btn.disabled = false; }, 2000);
 }
 
 async function sendBillTelegram() {
-  const d = window._currentBillDraft;
-  if (!d) return;
-  const tenant = STATE.tenants[d.roomId] || {};
-  const mk = monthKey();
+  const d = window._currentBillDraft; if (!d) return;
+  const tenant = STATE.tenants[d.roomId] || {}, mk = monthKey();
   const msg = `🏠 <b>${CFG.MANSION_NAME}</b> — ใบแจ้งหนี้\n\n` +
     `ห้อง: <b>${d.roomId}</b> | ${tenant.name || '-'}\n` +
     `ประจำเดือน: ${thaiMonth(mk)}\n\n` +
@@ -258,8 +236,5 @@ async function sendBillTelegram() {
     `📅 กำหนดชำระ: วันที่ ${CFG.DUE_DAY} ของเดือน\n` +
     `📞 สอบถาม: ${CFG.PHONE}`;
     
-  const btn = document.getElementById('btn-send-tg-bill');
-  btn.disabled = true;
-  await sendTelegram(msg);
-  btn.disabled = false;
+  const btn = document.getElementById('btn-send-tg-bill'); btn.disabled = true; await sendTelegram(msg); btn.disabled = false;
 }
