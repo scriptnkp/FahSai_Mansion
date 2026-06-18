@@ -166,6 +166,7 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-outline btn-sm" onclick="sendReportTelegram()">📤 ส่ง TG</button>
             <button class="btn btn-danger btn-sm" onclick="sendAllOverdueTelegram()">⚠️ แจ้งค้างชำระ</button>
+            <button class="btn btn-primary btn-sm" onclick="openTaxReportModal()">📊 ประเมินภาษีรายปี</button>
           </div>
         </div>
         <div id="report-section">
@@ -300,6 +301,17 @@
       <button class="btn btn-outline" data-close-modal="modal-pay-bill">ยกเลิก</button>
       <button class="btn btn-success" onclick="processPaymentConfirm()">✅ ยืนยันรับเงิน</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-tax-report">
+  <div class="modal" style="max-width: 500px;">
+    <div class="modal-header">
+      <span class="modal-title">📊 ประเมินภาษีประจำปี <span id="tax-year-label"></span></span>
+      <button class="modal-close" data-close-modal="modal-tax-report">✕</button>
+    </div>
+    <div class="modal-body" id="tax-report-body">
+      </div>
   </div>
 </div>
 

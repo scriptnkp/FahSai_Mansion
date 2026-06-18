@@ -106,3 +106,58 @@ async function sendReportTelegram() {
     
   await sendTelegram(msg);
 }
+
+// นำโค้ดนี้ไปต่อท้ายไฟล์ js/report.js
+
+// ค้นหาฟังก์ชัน openTaxReportModal ใน js/report.js และปรับปรุงสูตรคำนวณรายได้ดังนี้
+
+function openTaxReportModal() {
+  const mk = document.getElementById('report-month-select').value || monthKey();
+  const year = mk.split('-')[0];
+  document.getElementById('tax-year-label').textContent = year;
+
+  // รวมรายรับทั้งหมดของปีนั้น (เฉพาะบิลที่ชำระแล้ว)
+  let totalIncome = 0;
+  Object.values(STATE.bills).forEach(bill => {
+    if (bill.paid && bill.month.startsWith(year)) {
+      // 💡 แก้ไขตรงจุดนี้: หักเงินประกันออก (เพราะเงินประกันไม่ใช่รายรับที่ต้องเสียภาษี)
+      const deposit = bill.depositAmt || 0;
+      totalIncome += (bill.total - deposit); 
+    }
+  });
+
+  // หักค่าใช้จ่ายและลดหย่อน
+  const expense = totalIncome * 0.30; // หักค่าใช้จ่ายเหมา 30%
+  const deduction = 60000; // หักลดหย่อนส่วนตัว
+  let netIncome = totalIncome - expense - deduction;
+  if (netIncome < 0) netIncome = 0;
+
+  // คำนวณภาษีขั้นบันไดบุคคลธรรมดา
+  let tax = 0;
+  let remaining = netIncome;
+
+  if (remaining > 5000000) { tax += (remaining - 5000000) * 0.35; remaining = 5000000; }
+  if (remaining > 2000000) { tax += (remaining - 2000000) * 0.30; remaining = 2000000; }
+  if (remaining > 1000000) { tax += (remaining - 1000000) * 0.25; remaining = 1000000; }
+  if (remaining > 750000)  { tax += (remaining - 750000) * 0.20; remaining = 750000; }
+  if (remaining > 500000)  { tax += (remaining - 500000) * 0.15; remaining = 500000; }
+  if (remaining > 300000)  { tax += (remaining - 300000) * 0.10; remaining = 300000; }
+  if (remaining > 150000)  { tax += (remaining - 150000) * 0.05; remaining = 150000; }
+
+  // แสดงผลลงใน Modal
+  document.getElementById('tax-report-body').innerHTML = `
+    <table class="bill-table" style="margin-bottom: 0;">
+      <tr><td><b>รายได้รวมทั้งปี ${year} (ชำระแล้ว)</b><br><small style="color:var(--gray-400)">*ไม่รวมเงินประกันแรกเข้า</small></td><td class="text-right"><b>${fmt(totalIncome)}</b></td></tr>
+      <tr><td>หัก ค่าใช้จ่ายเหมา (30%)</td><td class="text-right" style="color:var(--red)">- ${fmt(expense)}</td></tr>
+      <tr><td>หัก ค่าลดหย่อนส่วนตัว</td><td class="text-right" style="color:var(--red)">- ${fmt(deduction)}</td></tr>
+      <tr style="background:var(--gray-100)"><td><b>เงินได้สุทธิเพื่อคำนวณภาษี</b></td><td class="text-right"><b>${fmt(netIncome)}</b></td></tr>
+      <tr class="total-row"><td><b>ภาษีที่ต้องชำระโดยประมาณ</b></td><td class="text-right" style="color:var(--sky-dk)"><b>${fmt(tax)}</b></td></tr>
+    </table>
+    <div style="font-size:12px; color:var(--gray-400); margin-top:16px; text-align:center; line-height: 1.4;">
+      * ข้อมูลนี้เป็นการประเมินเบื้องต้นเพื่อวางแผนการเงิน (ภ.ง.ด. 90)<br>
+      อ้างอิงจากการหักค่าใช้จ่ายเหมา 30% และค่าลดหย่อนส่วนตัว 60,000 บาท
+    </div>
+  `;
+  
+  openModal('modal-tax-report');
+}

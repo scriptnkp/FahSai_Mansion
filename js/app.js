@@ -444,6 +444,8 @@ function openPaymentModal(type, targetId, totalAmount, titleText) {
   openModal('modal-pay-bill');
 }
 
+// ค้นหาฟังก์ชัน processPaymentConfirm ใน js/app.js แล้วแก้เฉพาะบล็อก 'initial' ดังนี้
+
 async function processPaymentConfirm() {
   const type = document.getElementById('pay-bill-type').value;
   const targetId = document.getElementById('pay-bill-tenant-id').value;
@@ -460,6 +462,38 @@ async function processPaymentConfirm() {
       if (STATE.currentPage === 'report' && typeof renderReport === 'function') renderReport();
     }
   } else if (type === 'initial') {
+    // ── เริ่มต้นโค้ดที่แก้ไข: บันทึกบิลแรกเข้าลงระบบเพื่อไปคำนวณภาษี ──
+    const t = STATE.allTenants.find(x => x.id === targetId);
+    if (t) {
+      const mk = monthKey();
+      const key = `${t.roomId}-${mk}`;
+      
+      // บันทึกโครงสร้างบิลแรกเข้าลงฐานข้อมูล
+      STATE.bills[key] = {
+        roomId: t.roomId,
+        month: mk,
+        elecOld: 0, elecNew: 0, elecUnits: 0, elecAmt: 0,
+        waterOld: 0, waterNew: 0, waterUnits: 0, waterAmt: 0,
+        lateDays: 0, lateAmt: 0,
+        isNew: true,
+        depositAmt: CFG.DEPOSIT, // เงินประกัน
+        advanceAmt: CFG.RENT,    // ค่าเช่าล่วงหน้า
+        total: CFG.RENT + CFG.DEPOSIT,
+        paid: true,
+        paidDate: isoDate(),
+        createdAt: isoDate()
+      };
+      
+      await saveState(); // ซิงค์ขึ้น Supabase และ LocalStorage
+      toast(`บันทึกประวัติค่าเช่าแรกเข้าห้อง ${t.roomId} เรียบร้อย`, 'success');
+      
+      // อัปเดตหน้าจอหลักทันที
+      if (typeof renderDashboard === 'function') renderDashboard();
+      if (STATE.currentPage === 'history' && typeof renderHistory === 'function') renderHistory();
+      if (STATE.currentPage === 'report' && typeof renderReport === 'function') renderReport();
+    }
+    // ── สิ้นสุดโค้ดที่แก้ไข ──
+    
     executePrintInitialReceiptHTML(targetId, received);
   }
 }
