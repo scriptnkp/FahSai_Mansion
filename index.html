@@ -118,16 +118,8 @@
                 </div>
               </div>
               
-              <div class="form-row">
-                <div class="form-group"><label class="form-label">⚠️ ค่าปรับล่าช้า (วัน)</label><input type="number" class="form-control" id="late-days" min="0" value="0"></div>
-                <div class="form-group">
-                  <label class="form-label">ประเภทผู้เช่า</label>
-                  <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
-                    <input type="checkbox" id="is-new-tenant" style="width:20px;height:20px;">
-                    <label for="is-new-tenant" style="font-size:14px;cursor:pointer">ออกบิลแบบรวมค่าแรกเข้า (สำหรับผู้เช่าใหม่)</label>
-                  </div>
-                </div>
-              </div>
+              <!-- ลบส่วนค่าปรับและประเภทผู้เช่าออกไปแล้วตามคำขอ -->
+              
             </div>
           </div>
 
@@ -287,6 +279,14 @@
         <div style="font-size:13px; color:var(--gray-400);">จำนวนเงินที่ต้องชำระทั้งสิ้น (บาท)</div>
       </div>
 
+      <!-- เพิ่มช่องกรอกค่าปรับล่าช้า -->
+      <div id="pay-bill-late-group" class="form-group" style="margin-bottom:16px; text-align:left; display:none;">
+        <label class="form-label" style="font-weight:700; color:var(--red)">
+          ⚠️ เพิ่มค่าปรับชำระล่าช้า (บาท) - <span id="pay-bill-late-hint" style="font-weight:normal;"></span>
+        </label>
+        <input type="number" class="form-control" id="pay-bill-late-amt" value="0" style="font-size:18px; font-weight:700; text-align:center; border:2px solid var(--red); color:var(--red);">
+      </div>
+
       <div class="form-group" style="margin-bottom:16px;">
         <label class="form-label" style="font-weight:700; color:var(--gray-700)">💵 จำนวนเงินที่รับมา</label>
         <input type="number" class="form-control" id="pay-bill-received" style="font-size:20px; font-weight:700; text-align:center; height:50px; border:2px solid var(--sky);" placeholder="0.00">
@@ -304,6 +304,7 @@
   </div>
 </div>
 
+<!-- Popup ประเมินภาษี -->
 <div class="modal-overlay" id="modal-tax-report">
   <div class="modal" style="max-width: 500px;">
     <div class="modal-header">
@@ -311,7 +312,8 @@
       <button class="modal-close" data-close-modal="modal-tax-report">✕</button>
     </div>
     <div class="modal-body" id="tax-report-body">
-      </div>
+      <!-- ข้อมูลจะถูกสร้างจาก JavaScript -->
+    </div>
   </div>
 </div>
 
@@ -363,7 +365,6 @@ function loadSettings() {
   document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
   document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
   
-  // 💡 โหลดชื่อผู้ทำสัญญาที่เคยกรอกไว้มาแสดงอัตโนมัติ
   document.getElementById('add-tenant-rep').value = localStorage.getItem('default_rep_name') || '';
   document.getElementById('add-tenant-place').value = localStorage.getItem('default_place') || 'ฟ้าใสแมนชั่น';
 }

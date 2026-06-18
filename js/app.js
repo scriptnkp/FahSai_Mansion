@@ -77,7 +77,7 @@ async function loadSupabaseData() {
     const { data: billsData, error: errB } = await supabaseClient.from('bills').select('*');
     if(errB) throw errB;
     
-    // 💡 ปรับแก้ตรงจุดนี้: เคลียร์ค่า STATE ให้ว่างก่อน เพื่อไม่ให้จำข้อมูลเก่าในเครื่องมาแสดงผล
+    // เคลียร์ค่า STATE ให้ว่างก่อน เพื่อไม่ให้จำข้อมูลเก่าในเครื่องมาแสดงผล
     STATE.bills = {};
 
     if(billsData && billsData.length > 0) {
@@ -86,7 +86,9 @@ async function loadSupabaseData() {
         STATE.bills[key] = {
           roomId: b.room_id, month: b.month_key, elecUnits: b.elec_units, waterUnits: b.water_units,
           elecAmt: b.elec_amt, waterAmt: b.water_amt, lateAmt: b.late_amt, total: b.total_amount,
-          paid: b.is_paid, paidDate: b.paid_date
+          paid: b.is_paid, paidDate: b.paid_date,
+          depositAmt: b.deposit_amt || 0, // รองรับข้อมูลเงินประกันถ้ามีการเพิ่มตารางในอนาคต
+          advanceAmt: b.advance_amt || 0
         };
         if(b.elec_old !== undefined) STATE.bills[key].elecOld = b.elec_old;
         if(b.elec_new !== undefined) STATE.bills[key].elecNew = b.elec_new;
@@ -95,7 +97,7 @@ async function loadSupabaseData() {
       });
     }
     
-    // 💡 ปรับแก้ตรงจุดนี้: ซิงค์ให้ข้อมูลสำรองในเครื่อง (LocalStorage) ว่างเปล่าตาม Supabase ทันที
+    // ซิงค์ให้ข้อมูลสำรองในเครื่อง (LocalStorage) ว่างเปล่าตาม Supabase ทันที
     localStorage.setItem('bills', JSON.stringify(STATE.bills));
   } catch (e) { console.error("Load Data Error:", e); }
 }
@@ -429,40 +431,84 @@ function printContractFromHistory(tenantId) {
 function openPaymentModal(type, targetId, totalAmount, titleText) {
   document.getElementById('pay-bill-type').value = type;
   document.getElementById('pay-bill-tenant-id').value = targetId;
-  document.getElementById('pay-bill-total').textContent = fmt(totalAmount);
   document.getElementById('pay-bill-title').textContent = titleText;
   
+  let baseTotal = totalAmount;
+  let autoLateAmt = 0;
+  const lateGroup = document.getElementById('pay-bill-late-group');
+  const lateInput = document.getElementById('pay-bill-late-amt');
   const receivedInput = document.getElementById('pay-bill-received');
-  receivedInput.value = totalAmount; 
-  document.getElementById('pay-bill-change').textContent = "0.00";
-  
-  receivedInput.oninput = () => {
+
+  // คำนวณค่าปรับอัตโนมัติ (เฉพาะบิลรายเดือน)
+  if (type === 'monthly') {
+    if (lateGroup) lateGroup.style.display = 'block';
+    const d = dayOfMonth();
+    if (d > CFG.DUE_DAY) {
+      const daysLate = d - CFG.DUE_DAY;
+      autoLateAmt = daysLate * CFG.LATE_PER_DAY;
+      if (document.getElementById('pay-bill-late-hint')) {
+        document.getElementById('pay-bill-late-hint').textContent = `เกินกำหนด ${daysLate} วัน`;
+      }
+    } else {
+      if (document.getElementById('pay-bill-late-hint')) {
+        document.getElementById('pay-bill-late-hint').textContent = `ยังไม่เกินกำหนด`;
+      }
+    }
+  } else {
+    if (lateGroup) lateGroup.style.display = 'none';
+  }
+
+  if (lateInput) lateInput.value = autoLateAmt;
+
+  const updateModalTotals = () => {
+    const penalty = type === 'monthly' && lateInput ? (parseFloat(lateInput.value) || 0) : 0;
+    const finalTotal = baseTotal + penalty;
+    document.getElementById('pay-bill-total').textContent = fmt(finalTotal);
+    
     const r = parseFloat(receivedInput.value) || 0;
-    const change = Math.max(0, r - totalAmount);
-    document.getElementById('pay-bill-change').textContent = fmt(change);
+    document.getElementById('pay-bill-change').textContent = fmt(Math.max(0, r - finalTotal));
   };
+
+  if (lateInput) lateInput.oninput = updateModalTotals;
+  receivedInput.oninput = updateModalTotals;
+
+  // เซ็ตยอดเงินเริ่มต้นที่ช่องรับเงิน
+  receivedInput.value = baseTotal + autoLateAmt; 
+  updateModalTotals();
+  
   openModal('modal-pay-bill');
 }
-
-// ค้นหาฟังก์ชัน processPaymentConfirm ใน js/app.js แล้วแก้เฉพาะบล็อก 'initial' ดังนี้
 
 async function processPaymentConfirm() {
   const type = document.getElementById('pay-bill-type').value;
   const targetId = document.getElementById('pay-bill-tenant-id').value;
   const received = parseFloat(document.getElementById('pay-bill-received').value) || 0;
+  
+  const lateInput = document.getElementById('pay-bill-late-amt');
+  const lateAmt = lateInput ? (parseFloat(lateInput.value) || 0) : 0;
+  
   closeModal('modal-pay-bill');
   
   if (type === 'monthly') {
     const mk = monthKey(), key = `${targetId}-${mk}`;
     if (STATE.bills[key]) {
-      STATE.bills[key].paid = true; STATE.bills[key].paidDate = isoDate();
-      await saveState(); toast(`บันทึกรับเงินห้อง ${targetId} สำเร็จ`, 'success');
+      STATE.bills[key].paid = true; 
+      STATE.bills[key].paidDate = isoDate();
+      
+      // อัปเดตยอดบิลให้รวมค่าปรับเข้าไปด้วย (ถ้ามี)
+      if (lateAmt > 0) {
+        STATE.bills[key].lateAmt = lateAmt;
+        STATE.bills[key].total += lateAmt;
+      }
+
+      await saveState(); 
+      toast(`บันทึกรับเงินห้อง ${targetId} สำเร็จ`, 'success');
       if (typeof renderDashboard === 'function') renderDashboard();
       if (STATE.currentPage === 'history' && typeof renderHistory === 'function') renderHistory();
       if (STATE.currentPage === 'report' && typeof renderReport === 'function') renderReport();
     }
   } else if (type === 'initial') {
-    // ── เริ่มต้นโค้ดที่แก้ไข: บันทึกบิลแรกเข้าลงระบบเพื่อไปคำนวณภาษี ──
+    // ── บันทึกบิลแรกเข้าลงระบบเพื่อไปคำนวณภาษี ──
     const t = STATE.allTenants.find(x => x.id === targetId);
     if (t) {
       const mk = monthKey();
@@ -492,7 +538,6 @@ async function processPaymentConfirm() {
       if (STATE.currentPage === 'history' && typeof renderHistory === 'function') renderHistory();
       if (STATE.currentPage === 'report' && typeof renderReport === 'function') renderReport();
     }
-    // ── สิ้นสุดโค้ดที่แก้ไข ──
     
     executePrintInitialReceiptHTML(targetId, received);
   }
