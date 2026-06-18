@@ -59,11 +59,10 @@
     </header>
 
     <div class="page-content">
-      <!-- DASHBOARD -->
       <div id="page-dashboard" class="page active">
         <div class="stats-grid">
           <div class="stat-card accent-sky"><div class="stat-icon">🏠</div><div class="stat-value" id="stat-occupied">-</div><div class="stat-label">ห้องที่มีผู้เช่า</div><div class="stat-sub" id="stat-vacant">- ห้องว่าง</div></div>
-          <div class="stat-card accent-green"><div class="stat-icon">✅</div><div class="stat-value" id="stat-paid">-</div><div class="stat-label">ชำrateแล้วเดือนนี้</div></div>
+          <div class="stat-card accent-green"><div class="stat-icon">✅</div><div class="stat-value" id="stat-paid">-</div><div class="stat-label">ชำระแล้วเดือนนี้</div></div>
           <div class="stat-card accent-red"><div class="stat-icon">⚠️</div><div class="stat-value" id="stat-overdue">-</div><div class="stat-label">ค้างชำระ</div></div>
           <div class="stat-card accent-amber"><div class="stat-icon">💰</div><div class="stat-value" id="stat-income" style="font-size:18px">-</div><div class="stat-label">รายรับที่ได้รับแล้ว</div><div class="stat-sub">เป้า: <span id="stat-expected">-</span> บาท</div></div>
         </div>
@@ -90,7 +89,6 @@
         </div>
       </div>
 
-      <!-- FORM -->
       <div id="page-form" class="page">
         <div style="display:grid;grid-template-columns:1fr;gap:16px">
           <div class="card">
@@ -136,7 +134,6 @@
         </div>
       </div>
 
-      <!-- TENANT HISTORY -->
       <div id="page-tenant-history" class="page">
         <div class="card">
           <div class="card-header"><span class="card-title">👥 ประวัติการเข้า-ออก ผู้เช่า</span></div>
@@ -151,7 +148,6 @@
         </div>
       </div>
 
-      <!-- REPORT -->
       <div id="page-report" class="page">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px">
           <div style="display:flex;align-items:center;gap:10px"><label class="form-label" style="margin:0">เดือน:</label><select class="form-control" id="report-month-select" style="width:auto;min-width:180px"></select></div>
@@ -175,7 +171,6 @@
         </div>
       </div>
 
-      <!-- HISTORY -->
       <div id="page-history" class="page">
         <div class="filter-bar">
           <input type="text" class="form-control" id="hist-search" placeholder="🔍 ค้นหาชื่อ / ห้อง">
@@ -190,7 +185,6 @@
         </table></div></div>
       </div>
 
-      <!-- SETTINGS -->
       <div id="page-settings" class="page">
         <div class="card">
           <div class="card-header"><span class="card-title">⚙️ ตั้งค่าระบบ</span></div>
@@ -226,11 +220,14 @@
 
 <div id="toast-container"></div>
 
-<!-- Add Tenant Modal -->
 <div class="modal-overlay" id="modal-add-tenant">
   <div class="modal" style="max-width: 700px;">
-    <div class="modal-header"><span class="modal-title">➕ เพิ่มผู้เช่า — ห้อง <span id="modal-add-room"></span></span><button class="modal-close" data-close-modal="modal-add-tenant">✕</button></div>
+    <div class="modal-header">
+      <span class="modal-title">➕ เพิ่มผู้เช่า และ ทำสัญญา — ห้อง <span id="modal-add-room"></span></span>
+      <button class="modal-close" data-close-modal="modal-add-tenant">✕</button>
+    </div>
     <div class="modal-body">
+      <div class="alert alert-info">💡 การบันทึกนี้จะเพิ่มผู้เช่าเข้าห้อง และสร้างแบบฟอร์มสัญญาเช่าให้พิมพ์ทันที</div>
       <input type="hidden" id="add-tenant-room">
       <div class="form-row">
         <div class="form-group"><label class="form-label">คำนำหน้า</label><select class="form-control" id="add-tenant-prefix"><option value="นาย">นาย</option><option value="นาง">นาง</option><option value="นางสาว">นางสาว</option></select></div>
@@ -242,55 +239,33 @@
       </div>
       <div class="form-row">
         <div class="form-group"><label class="form-label">สถานที่ทำสัญญา</label><input type="text" class="form-control" id="add-tenant-place" value="ฟ้าใสแมนชั่น"></div>
-        <div class="form-group"><label class="form-label">วันที่เข้าอยู่</label><input type="date" class="form-control" id="add-tenant-movein"></div>
+        <div class="form-group"><label class="form-label">วันที่เข้าอยู่ / ทำสัญญา</label><input type="date" class="form-control" id="add-tenant-movein"></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label class="form-label">📸 บัตรประชาชน (ขนาด < 1MB)</label><input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;"></div>
-        <div class="form-group"><label class="form-label">📸 รูปถ่ายผู้เช่า (ขนาด < 1MB)</label><input type="file" class="form-control" id="add-tenant-photo-img" accept="image/*" style="padding: 6px;"></div>
+        <div class="form-group"><label class="form-label">📸 อัปโหลดบัตรประชาชน (ขนาด < 1MB)</label><input type="file" class="form-control" id="add-tenant-id-img" accept="image/*" style="padding: 6px;"></div>
+        <div class="form-group"><label class="form-label">📸 อัปโหลดรูปถ่ายผู้เช่า (ขนาด < 1MB)</label><input type="file" class="form-control" id="add-tenant-photo-img" accept="image/*" style="padding: 6px;"></div>
       </div>
     </div>
-    <div class="modal-footer"><button class="btn btn-outline" data-close-modal="modal-add-tenant">ยกเลิก</button><button class="btn btn-primary" onclick="submitAddTenantAndContract()">✅ บันทึกและสร้างสัญญา</button></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" data-close-modal="modal-add-tenant">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="submitAddTenantAndContract()">✅ บันทึกและสร้างสัญญา</button>
+    </div>
   </div>
 </div>
 
-<!-- 🆕 Popup Modal รับเงินโฉมใหม่ (สวยงาม เรียบร้อย) -->
-<div class="modal-overlay" id="modal-pay-bill">
-  <div class="modal" style="max-width: 420px; border-radius:16px;">
-    <div class="modal-header" style="background:var(--sky); color:white; border-radius:14px 14px 0 0;"><span class="modal-title">💵 บันทึกการรับชำระเงิน</span><button class="modal-close" style="color:white" data-close-modal="modal-pay-bill">✕</button></div>
-    <div class="modal-body" style="padding:24px;">
-      <input type="hidden" id="pay-bill-room">
-      <input type="hidden" id="pay-bill-type"> <!-- 'monthly' หรือ 'initial' -->
-      <input type="hidden" id="pay-bill-tenant-id">
-      
-      <div style="text-align:center; margin-bottom:20px;">
-        <div id="pay-bill-title" style="font-size:16px; color:var(--gray-600);">ห้องพักหมายเลข</div>
-        <div id="pay-bill-total" style="font-size:36px; font-weight:800; color:var(--sky-dk); margin:8px 0;">0.00</div>
-        <div style="font-size:13px; color:var(--gray-400);">จำนวนเงินที่ต้องชำระทั้งสิ้น (บาท)</div>
-      </div>
-
-      <div class="form-group" style="margin-bottom:16px;">
-        <label class="form-label" style="font-weight:700; color:var(--gray-700)">💵 จำนวนเงินที่รับมา</label>
-        <input type="number" class="form-control" id="pay-bill-received" style="font-size:20px; font-weight:700; text-align:center; height:50px; border:2px solid var(--sky);" placeholder="0.00">
-      </div>
-
-      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px; text-align:center;">
-        <div style="font-size:13px; color:#16a34a; font-weight:600;">💰 เงินทอน</div>
-        <div id="pay-bill-change" style="font-size:24px; font-weight:800; color:#15803d; margin-top:4px;">0.00</div>
-      </div>
-    </div>
-    <div class="modal-footer" style="background:#f8fafc;"><button class="btn btn-outline" data-close-modal="modal-pay-bill">ยกเลิก</button><button class="btn btn-success" id="btn-confirm-payment" onclick="processPaymentConfirm()">✅ ยืนยันรับเงิน</button></div>
-  </div>
-</div>
-
-<!-- Print Document Modal -->
 <div class="modal-overlay" id="modal-print-contract" style="background: rgba(0,0,0,0.8);">
   <div class="modal" style="max-width: 1000px; max-height: 95vh; display: flex; flex-direction: column;">
-    <div class="modal-header no-print"><span class="modal-title">👁 ตัวอย่างเอกสาร</span><div style="display:flex; gap:10px;"><button class="btn btn-success btn-sm" onclick="window.print()">🖨 พิมพ์ / PDF</button><button class="modal-close" data-close-modal="modal-print-contract">✕</button></div></div>
-    <div class="modal-body contract-sheet" id="contract-output" style="flex:1; overflow-y:auto;"></div>
+    <div class="modal-header no-print">
+      <span class="modal-title">👁 ตัวอย่างเอกสาร (พร้อมพิมพ์)</span>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-success btn-sm" onclick="window.print()">🖨 พิมพ์ / บันทึก PDF</button>
+        <button class="modal-close" data-close-modal="modal-print-contract">✕</button>
+      </div>
+    </div>
+    <div class="modal-body contract-sheet" id="contract-output" style="flex:1; overflow-y:auto; border-radius: 0 0 12px 12px;"></div>
   </div>
 </div>
 
-<!-- Bill Detail Modal -->
 <div class="modal-overlay" id="modal-bill-detail">
   <div class="modal"><div class="modal-header"><span class="modal-title">🧾 รายละเอียดบิล</span><button class="modal-close" data-close-modal="modal-bill-detail">✕</button></div><div class="modal-body" id="history-bill-detail"></div></div>
 </div>
@@ -300,5 +275,57 @@
 <script src="js/form.js"></script>
 <script src="js/report.js"></script>
 <script src="js/history.js"></script>
+<script>
+document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('th-TH', { weekday:'short', year:'numeric', month:'long', day:'numeric' });
+
+document.addEventListener('DOMContentLoaded', async () => {
+  document.querySelectorAll('.nav-item[data-page]').forEach(n => n.addEventListener('click', () => navigate(n.dataset.page)));
+  document.querySelector('.btn-hamburger').addEventListener('click', openSidebar);
+  document.querySelector('.sidebar-backdrop').addEventListener('click', closeSidebar);
+  document.querySelectorAll('[data-close-modal]').forEach(btn => btn.addEventListener('click', () => closeModal(btn.dataset.closeModal)));
+  
+  toast('กำลังเชื่อมต่อฐานข้อมูล...', 'default', 2000);
+  await loadSupabaseData();
+  loadSettings();
+  initForm();
+  if (typeof initHistory === 'function') initHistory();
+  if (typeof renderTenantHistory === 'function') renderTenantHistory();
+  navigate('dashboard');
+});
+
+function loadSettings() {
+  document.getElementById('cfg-tg-token').value = localStorage.getItem('tg_token') || '';
+  document.getElementById('cfg-tg-chat').value  = localStorage.getItem('tg_chat') || '';
+  document.getElementById('cfg-rent').value      = CFG.RENT;
+  document.getElementById('cfg-elec').value      = CFG.ELEC_RATE;
+  document.getElementById('cfg-water').value     = CFG.WATER_RATE;
+  document.getElementById('cfg-water-min').value = CFG.WATER_MIN;
+  document.getElementById('cfg-late').value      = CFG.LATE_PER_DAY;
+  document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
+  document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
+  document.getElementById('cfg-rooms-text').value = CFG.ROOMS_TEXT;
+}
+
+function saveSettings() {
+  localStorage.setItem('tg_token',  document.getElementById('cfg-tg-token').value.trim());
+  localStorage.setItem('tg_chat',   document.getElementById('cfg-tg-chat').value.trim());
+  localStorage.setItem('cfg_rooms_text', document.getElementById('cfg-rooms-text').value.trim());
+  localStorage.setItem('cfg_rent', document.getElementById('cfg-rent').value);
+  localStorage.setItem('cfg_elec', document.getElementById('cfg-elec').value);
+  localStorage.setItem('cfg_water', document.getElementById('cfg-water').value);
+  localStorage.setItem('cfg_water_min', document.getElementById('cfg-water-min').value);
+  localStorage.setItem('cfg_late', document.getElementById('cfg-late').value);
+  localStorage.setItem('cfg_due_day', document.getElementById('cfg-due-day').value);
+  localStorage.setItem('cfg_cut_day', document.getElementById('cfg-cut-day').value);
+  toast('บันทึกการตั้งค่าแล้ว ระบบจะโหลดใหม่ใน 2 วินาที...', 'success');
+  setTimeout(() => { location.reload(); }, 2000);
+}
+
+function testTelegram() {
+  localStorage.setItem('tg_token', document.getElementById('cfg-tg-token').value.trim());
+  localStorage.setItem('tg_chat',  document.getElementById('cfg-tg-chat').value.trim());
+  sendTelegram(`✅ ทดสอบการเชื่อมต่อ ${CFG.MANSION_NAME} — สำเร็จ!`);
+}
+</script>
 </body>
 </html>
