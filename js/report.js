@@ -189,11 +189,12 @@ function openTaxReportModal() {
   openModal('modal-tax-report');
 }
 
-// ── ฟังก์ชันสร้างรายงาน PDF แยกเดือน (อัปเดตเพิ่มสรุปภาษี) ──
+// ── ฟังก์ชันสร้างรายงาน PDF แยกเดือน (อัปเดตแก้นับห้องซ้ำ) ──
 function printYearlyTaxReport(year) {
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png';
   
-  const monthsData = Array.from({length: 12}, () => ({ roomCount: 0, rent: 0, elec: 0, water: 0, late: 0, total: 0 }));
+  // 💡 แก้ไข: ใช้ Set() เพื่อเก็บเลขห้อง มันจะไม่นับเลขห้องที่ซ้ำกัน
+  const monthsData = Array.from({length: 12}, () => ({ rooms: new Set(), rent: 0, elec: 0, water: 0, late: 0, total: 0 }));
   let grandTotal = 0;
 
   // 1. จัดกลุ่มข้อมูลบิลตามเดือน
@@ -207,7 +208,9 @@ function printYearlyTaxReport(year) {
          const late = b.lateAmt || 0;
          const taxable = rent + elec + water + late; // รวมเฉพาะรายได้ ไม่เอาเงินมัดจำ
 
-         monthsData[mIndex].roomCount += 1; 
+         // 💡 เอาเลขห้องใส่เข้าไปใน Set ถ้าเลขห้องซ้ำ มันจะนับแค่ 1
+         monthsData[mIndex].rooms.add(b.roomId); 
+         
          monthsData[mIndex].rent += rent;
          monthsData[mIndex].elec += elec;
          monthsData[mIndex].water += water;
@@ -245,8 +248,7 @@ function printYearlyTaxReport(year) {
         tbody += `
           <tr>
             <td class="text-center">${thaiMonths[i]}</td>
-            <td class="text-center">${d.roomCount}</td>
-            <td class="text-right">${fmt(d.rent)}</td>
+            <td class="text-center">${d.rooms.size}</td> <td class="text-right">${fmt(d.rent)}</td>
             <td class="text-right">${fmt(d.elec)}</td>
             <td class="text-right">${fmt(d.water)}</td>
             <td class="text-right">${fmt(d.late)}</td>
@@ -296,7 +298,6 @@ function printYearlyTaxReport(year) {
         </tbody>
     </table>
 
-    <!-- 💡 ส่วนตารางประเมินภาษีที่เพิ่มเข้ามา -->
     <div style="margin-top: 30px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family:'Sarabun', sans-serif;">
         <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:0;">
             <tr style="background-color:#e0f2fe;">
