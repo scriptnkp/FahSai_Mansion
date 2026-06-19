@@ -189,15 +189,14 @@ function openTaxReportModal() {
   openModal('modal-tax-report');
 }
 
-// ── ฟังก์ชันสร้างรายงาน PDF แยกเดือน ──
+// ── ฟังก์ชันสร้างรายงาน PDF แยกเดือน (อัปเดตเพิ่มสรุปภาษี) ──
 function printYearlyTaxReport(year) {
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png';
   
-  // 💡 เพิ่ม roomCount เข้าไปในโครงสร้างเพื่อใช้นับจำนวนห้อง
   const monthsData = Array.from({length: 12}, () => ({ roomCount: 0, rent: 0, elec: 0, water: 0, late: 0, total: 0 }));
   let grandTotal = 0;
 
-  // จัดกลุ่มข้อมูลบิลตามเดือน
+  // 1. จัดกลุ่มข้อมูลบิลตามเดือน
   Object.values(STATE.bills).forEach(b => {
     if (b.paid && b.month.startsWith(year)) {
       const mIndex = parseInt(b.month.split('-')[1]) - 1; // หา index เดือน (0-11)
@@ -208,7 +207,6 @@ function printYearlyTaxReport(year) {
          const late = b.lateAmt || 0;
          const taxable = rent + elec + water + late; // รวมเฉพาะรายได้ ไม่เอาเงินมัดจำ
 
-         // 💡 นับจำนวนห้องที่ชำระเงินในเดือนนั้นๆ
          monthsData[mIndex].roomCount += 1; 
          monthsData[mIndex].rent += rent;
          monthsData[mIndex].elec += elec;
@@ -221,6 +219,24 @@ function printYearlyTaxReport(year) {
     }
   });
 
+  // 2. คำนวณภาษีบุคคลธรรมดา (ภ.ง.ด. 90)
+  const expense = grandTotal * 0.30; 
+  const deduction = 60000; 
+  let netIncome = grandTotal - expense - deduction;
+  if (netIncome < 0) netIncome = 0;
+
+  let tax = 0;
+  let remaining = netIncome;
+
+  if (remaining > 5000000) { tax += (remaining - 5000000) * 0.35; remaining = 5000000; }
+  if (remaining > 2000000) { tax += (remaining - 2000000) * 0.30; remaining = 2000000; }
+  if (remaining > 1000000) { tax += (remaining - 1000000) * 0.25; remaining = 1000000; }
+  if (remaining > 750000)  { tax += (remaining - 750000) * 0.20; remaining = 750000; }
+  if (remaining > 500000)  { tax += (remaining - 500000) * 0.15; remaining = 500000; }
+  if (remaining > 300000)  { tax += (remaining - 300000) * 0.10; remaining = 300000; }
+  if (remaining > 150000)  { tax += (remaining - 150000) * 0.05; remaining = 150000; }
+
+  // 3. วาดตารางรายเดือน
   const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   let tbody = '';
   
@@ -244,7 +260,7 @@ function printYearlyTaxReport(year) {
       tbody = `<tr><td colspan="7" class="text-center" style="padding:20px;">ไม่มีข้อมูลรายรับในปีนี้</td></tr>`;
   }
 
-  // 💡 ปรับปรุงหน้าตาเอกสาร PDF ให้มี Header มาตรฐานและเพิ่มคอลัมน์จำนวนห้อง
+  // 4. วาดโครงสร้างเอกสาร PDF
   const html = `
     <div style="display:flex; align-items:center; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:16px; font-family:'Sarabun', sans-serif;">
       <img src="${LOGO_URL}" alt="Logo" style="width:100px; height:auto; object-fit:contain; margin-right:15px;" onerror="this.style.display='none'">
@@ -279,6 +295,36 @@ function printYearlyTaxReport(year) {
             </tr>
         </tbody>
     </table>
+
+    <!-- 💡 ส่วนตารางประเมินภาษีที่เพิ่มเข้ามา -->
+    <div style="margin-top: 30px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family:'Sarabun', sans-serif;">
+        <table style="width:100%; border-collapse:collapse; font-size:14px; margin-bottom:0;">
+            <tr style="background-color:#e0f2fe;">
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><b>รายได้สุทธิ (ไม่รวมเงินประกัน)</b></td>
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; color:#0369a1;"><b>${fmt(grandTotal)}</b></td>
+            </tr>
+            <tr>
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0;">หัก ค่าใช้จ่ายเหมา (30%)</td>
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; color:#ef4444;">- ${fmt(expense)}</td>
+            </tr>
+            <tr>
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0;">หัก ค่าลดหย่อนส่วนตัว</td>
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right; color:#ef4444;">- ${fmt(deduction)}</td>
+            </tr>
+            <tr style="background-color:#f1f5f9;">
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0;"><b>เงินได้เพื่อคำนวณภาษี</b></td>
+              <td style="padding:10px; border-bottom:1px solid #e2e8f0; text-align:right;"><b>${fmt(netIncome)}</b></td>
+            </tr>
+            <tr>
+              <td style="padding:12px 10px; color:#0369a1; font-size:16px;"><b>ภาษีที่ต้องชำระโดยประมาณ</b></td>
+              <td style="padding:12px 10px; text-align:right; color:#0369a1; font-size:16px;"><b>${fmt(tax)}</b></td>
+            </tr>
+        </table>
+    </div>
+    <div style="font-size:12px; color:#64748b; margin-top:10px; text-align:center; line-height: 1.4; font-family:'Sarabun', sans-serif;">
+      * ข้อมูลนี้เป็นการประเมินภาษีเงินได้บุคคลธรรมดาเบื้องต้น (ภ.ง.ด. 90)<br>
+      อ้างอิงจากการหักค่าใช้จ่ายเหมา 30% และค่าลดหย่อนส่วนตัว 60,000 บาท
+    </div>
     
     <div style="margin-top: 40px; text-align: right; font-size: 13px; font-family:'Sarabun', sans-serif;">
         พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
