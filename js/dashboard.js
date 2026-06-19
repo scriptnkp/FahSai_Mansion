@@ -13,9 +13,25 @@ function renderStats() {
   CFG.ROOMS.forEach(r => {
     const t = STATE.tenants[r]; if (!t || !t.active) return;
     occupied++;
-    const bill = STATE.bills[`${r}-${mk}`]; if (!bill) return;
-    if (bill.paid) { paid++; totalIncome += bill.total; }
-    else { if (dayOfMonth() > CFG.DUE_DAY) overdue++; }
+    
+    // 💡 แก้ไข: ดึงบิลทั้งหมดของห้องนี้ในเดือนนี้ (รวมทั้งบิลแรกเข้า -IN และบิลปกติ)
+    const roomBills = Object.values(STATE.bills).filter(b => b.roomId === r && b.month.startsWith(mk));
+    if (roomBills.length === 0) return;
+
+    let roomAllPaid = true;
+    let roomHasOverdue = false;
+
+    roomBills.forEach(bill => {
+      if (bill.paid) { 
+        totalIncome += bill.total; // นำยอดเงินทุกบิลมาบวกกัน
+      } else {
+        roomAllPaid = false;
+        if (dayOfMonth() > CFG.DUE_DAY) roomHasOverdue = true;
+      }
+    });
+
+    if (roomAllPaid) paid++;
+    else if (roomHasOverdue) overdue++;
   });
 
   const vacant = CFG.ROOMS.length - occupied, expectedMonthly = occupied * CFG.RENT;
@@ -23,6 +39,8 @@ function renderStats() {
   document.getElementById('stat-vacant').textContent = `${vacant} ห้องว่าง`;
   document.getElementById('stat-paid').textContent = paid;
   document.getElementById('stat-overdue').textContent = overdue;
+  
+  // ยอดรายรับอัปเดตให้ดึงจาก totalIncome ที่บวกครบทุกบิลแล้ว
   document.getElementById('stat-income').textContent = fmtInt(totalIncome);
   document.getElementById('stat-expected').textContent = fmtInt(expectedMonthly);
 
@@ -52,7 +70,13 @@ function statusBadge(s) { return { occupied: 'sky', vacant: 'success', overdue: 
 function selectRoom(roomId) { STATE.selectedRoom = roomId; renderRoomGrid(); showRoomPanel(roomId); }
 
 function showRoomPanel(roomId) {
-  const mk = monthKey(), tenant = STATE.tenants[roomId] || {}, bill = STATE.bills[`${roomId}-${mk}`], status = getRoomStatus(roomId);
+  const mk = monthKey(), tenant = STATE.tenants[roomId] || {}, status = getRoomStatus(roomId);
+  
+  // 💡 แก้ไข: ถ้ามีทั้งบิลแรกเข้าและบิลปกติ ให้แสดงบิลปกติ แต่ถ้ามีแค่แรกเข้าก็โชว์แรกเข้า
+  const normalBill = STATE.bills[`${roomId}-${mk}`];
+  const initBill = STATE.bills[`${roomId}-${mk}-IN`];
+  const bill = normalBill || initBill; 
+
   const panel = document.getElementById('room-panel');
   panel.innerHTML = `
     <div class="card-header" style="padding:16px 20px;">
@@ -77,20 +101,30 @@ function showRoomPanel(roomId) {
 }
 
 function renderBillSummary(bill) {
-  return `<table class="bill-table" style="margin-bottom:8px">
-    <tr><td>ค่าเช่า</td><td class="text-right">${fmt(CFG.RENT)}</td></tr>
-    <tr><td>ค่าไฟ (${bill.elecUnits}u)</td><td class="text-right">${fmt(bill.elecAmt)}</td></tr>
-    <tr><td>ค่าน้ำ (${bill.waterUnits}u)</td><td class="text-right">${fmt(bill.waterAmt)}</td></tr>
-    <tr class="total-row"><td><b>รวม</b></td><td class="text-right"><b>${fmt(bill.total)}</b></td></tr>
-  </table><div style="font-size:12px;">${bill.paid ? `<span style="color:var(--green)">✅ ชำระแล้ว ${bill.paidDate}</span>` : `<span style="color:var(--red)">⏳ ค้างชำระ</span>`}</div>`;
+  // 💡 ปรับให้หน้าต่างห้องแสดงข้อมูลบิลแรกเข้าได้ถูกต้อง
+  if (bill.isNew) {
+     return `<table class="bill-table" style="margin-bottom:8px">
+      <tr><td>ค่าเช่าล่วงหน้า</td><td class="text-right">${fmt(bill.advanceAmt || CFG.RENT)}</td></tr>
+      <tr><td>เงินประกัน</td><td class="text-right">${fmt(bill.depositAmt || (bill.total - (bill.advanceAmt || CFG.RENT)))}</td></tr>
+      <tr class="total-row"><td><b>รวมยอดแรกเข้า</b></td><td class="text-right"><b>${fmt(bill.total)}</b></td></tr>
+    </table><div style="font-size:12px;">${bill.paid ? `<span style="color:var(--green)">✅ ชำระแล้ว ${bill.paidDate}</span>` : `<span style="color:var(--red)">⏳ ค้างชำระ</span>`}</div>`;
+  } else {
+     return `<table class="bill-table" style="margin-bottom:8px">
+      <tr><td>ค่าเช่า</td><td class="text-right">${fmt(CFG.RENT)}</td></tr>
+      <tr><td>ค่าไฟ (${bill.elecUnits}u)</td><td class="text-right">${fmt(bill.elecAmt)}</td></tr>
+      <tr><td>ค่าน้ำ (${bill.waterUnits}u)</td><td class="text-right">${fmt(bill.waterAmt)}</td></tr>
+      <tr class="total-row"><td><b>รวม</b></td><td class="text-right"><b>${fmt(bill.total)}</b></td></tr>
+    </table><div style="font-size:12px;">${bill.paid ? `<span style="color:var(--green)">✅ ชำระแล้ว ${bill.paidDate}</span>` : `<span style="color:var(--red)">⏳ ค้างชำระ</span>`}</div>`;
+  }
 }
 
 function renderOverdueList() {
   const mk = monthKey(), list = [];
   CFG.ROOMS.forEach(r => {
     if (getRoomStatus(r) === 'overdue' || getRoomStatus(r) === 'warning') {
-      const bill = STATE.bills[`${r}-${mk}`], tenant = STATE.tenants[r];
-      if (tenant?.active && bill && !bill.paid) list.push({ roomId: r, tenant, bill });
+      const unpaidBill = Object.values(STATE.bills).find(b => b.roomId === r && b.month.startsWith(mk) && !b.paid);
+      const tenant = STATE.tenants[r];
+      if (tenant?.active && unpaidBill) list.push({ roomId: r, tenant, bill: unpaidBill });
     }
   });
   const el = document.getElementById('overdue-list');
@@ -104,10 +138,10 @@ function renderOverdueList() {
 }
 
 function markPaid(roomId) {
-  const mk = monthKey(), bill = STATE.bills[`${roomId}-${mk}`];
-  if (!bill) return;
-  // เรียกเปิด Popup แทนการเซฟทันที
-  openPaymentModal('monthly', roomId, bill.total, `ห้อง ${roomId} รอบเดือน ${thaiMonth(mk)}`);
+  const mk = monthKey();
+  const unpaidBill = Object.values(STATE.bills).find(b => b.roomId === roomId && b.month.startsWith(mk) && !b.paid);
+  if (!unpaidBill) return;
+  openPaymentModal('monthly', roomId, unpaidBill.total, `ห้อง ${roomId} รอบเดือน ${thaiMonth(unpaidBill.month)}`);
 }
 
 async function confirmVacate(roomId) {
