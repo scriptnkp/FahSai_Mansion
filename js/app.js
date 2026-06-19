@@ -83,7 +83,7 @@ async function loadSupabaseData() {
       billsData.forEach(b => {
         const key = `${b.room_id}-${b.month_key}`;
         
-        // 💡 กู้คืนข้อมูลบิลแรกเข้าอัตโนมัติ
+        // กู้คืนข้อมูลบิลแรกเข้าอัตโนมัติ
         const isInitialBill = (b.water_amt === 0 && b.elec_amt === 0 && b.total_amount > CFG.RENT);
 
         STATE.bills[key] = {
@@ -114,19 +114,30 @@ async function saveState() {
       id_card_image_url: t.idCardImage ? t.idCardImage.replace('/thumbnail?id=', '/file/d/').replace('&sz=w1000', '/view') : null, 
       tenant_photo_url: t.tenantImage ? t.tenantImage.replace('/thumbnail?id=', '/file/d/').replace('&sz=w1000', '/view') : null
     }));
-    if(tenantsPayload.length > 0) await supabaseClient.from('tenants').upsert(tenantsPayload, { onConflict: 'id' });
+    
+    if(tenantsPayload.length > 0) {
+      const { error: tErr } = await supabaseClient.from('tenants').upsert(tenantsPayload, { onConflict: 'id' });
+      if (tErr) throw tErr; 
+    }
 
     const billsPayload = Object.entries(STATE.bills).map(([key, b]) => {
-      const [roomId, y, m] = key.split('-');
       return {
-        room_id: roomId, month_key: `${y}-${m}`, 
+        room_id: b.roomId, 
+        month_key: b.month, 
         elec_old: b.elecOld || 0, elec_new: b.elecNew || 0, elec_units: b.elecUnits || 0, elec_amt: b.elecAmt || 0,
         water_old: b.waterOld || 0, water_new: b.waterNew || 0, water_units: b.waterUnits || 0, water_amt: b.waterAmt || 0, 
         late_amt: b.lateAmt || 0, total_amount: b.total || 0, is_paid: b.paid || false, paid_date: b.paidDate || null
       };
     });
-    if(billsPayload.length > 0) await supabaseClient.from('bills').upsert(billsPayload, { onConflict: 'room_id,month_key' });
-  } catch (e) { console.error("Sync Error:", e); }
+    
+    if(billsPayload.length > 0) {
+      const { error: bErr } = await supabaseClient.from('bills').upsert(billsPayload, { onConflict: 'room_id,month_key' });
+      if (bErr) throw bErr; 
+    }
+  } catch (e) { 
+    console.error("Sync Error:", e);
+    toast(`❌ บันทึกฐานข้อมูลไม่สำเร็จ: ${e.message || 'โปรดตรวจสอบการเชื่อมต่อ'}`, "error", 5000);
+  }
 }
 
 function compressImage(file, maxWidth = 1600, quality = 0.7) {
@@ -271,28 +282,51 @@ async function submitAddTenantAndContract() {
 
   if (!name) { toast('กรุณากรอกชื่อ', 'error'); return; }
 
-  const btn = document.querySelector('button[onclick="submitAddTenantAndContract()"]'); btn.disabled = true; btn.textContent = '⏳ บีบอัดรูปและบันทึก...';
+  const btn = document.querySelector('button[onclick="submitAddTenantAndContract()"]'); 
+  btn.disabled = true; 
+  btn.textContent = '⏳ บีบอัดรูปและบันทึก...';
   
-  const idCardRes = await uploadImageToGAS('add-tenant-id-img');
-  const tenantRes = await uploadImageToGAS('add-tenant-photo-img');
+  try {
+    const idCardRes = await uploadImageToGAS('add-tenant-id-img');
+    const tenantRes = await uploadImageToGAS('add-tenant-photo-img');
 
-  const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
-  const newTenant = { id: newId, roomId, prefix, name, phone, idNum, moveIn, active: true, idCardImage: idCardRes.url, tenantImage: tenantRes.url };
-  
-  if (idCardRes.b64) localStorage.setItem(`img_id_${newId}`, idCardRes.b64);
-  if (tenantRes.b64) localStorage.setItem(`img_photo_${newId}`, tenantRes.b64);
-  
-  STATE.allTenants.push(newTenant); 
-  STATE.tenants[roomId] = newTenant;
-  await saveState();
+    const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
+    const newTenant = { id: newId, roomId, prefix, name, phone, idNum, moveIn, active: true, idCardImage: idCardRes.url, tenantImage: tenantRes.url };
+    
+    Object.keys(localStorage).forEach(k => {
+      if (k.startsWith('img_id_') || k.startsWith('img_photo_')) {
+        localStorage.removeItem(k);
+      }
+    });
 
-  closeModal('modal-add-tenant'); toast(`เพิ่มผู้เช่าสำเร็จ`, 'success');
-  if (typeof renderDashboard === 'function') renderDashboard();
-  if (typeof selectRoom === 'function') selectRoom(roomId);
-  if (typeof renderTenantHistory === 'function') renderTenantHistory();
-  
-  btn.disabled = false; btn.textContent = '✅ บันทึกและสร้างสัญญา';
-  printContractFromHistory(newTenant.id); 
+    try {
+      if (idCardRes.b64) localStorage.setItem(`img_id_${newId}`, idCardRes.b64);
+      if (tenantRes.b64) localStorage.setItem(`img_photo_${newId}`, tenantRes.b64);
+    } catch (storageErr) {
+      console.warn("Storage full", storageErr);
+      toast('คำเตือน: พื้นที่ในเครื่องเต็ม รูปอาจไม่แสดงในสัญญาชั่วคราว', 'warning');
+    }
+    
+    STATE.allTenants.push(newTenant); 
+    STATE.tenants[roomId] = newTenant;
+    await saveState(); 
+
+    closeModal('modal-add-tenant'); 
+    toast(`เพิ่มผู้เช่าสำเร็จ`, 'success');
+    if (typeof renderDashboard === 'function') renderDashboard();
+    if (typeof selectRoom === 'function') selectRoom(roomId);
+    if (typeof renderTenantHistory === 'function') renderTenantHistory();
+    
+    btn.disabled = false; 
+    btn.textContent = '✅ บันทึกและสร้างสัญญา';
+    printContractFromHistory(newTenant.id); 
+
+  } catch (e) {
+    console.error("Submit Error:", e);
+    toast(`เกิดข้อผิดพลาด: ${e.message || 'ไม่สามารถบันทึกข้อมูลได้'}`, 'error');
+    btn.disabled = false; 
+    btn.textContent = '✅ บันทึกและสร้างสัญญา';
+  }
 }
 
 function getContractHTML(t, place, repName) {
@@ -422,7 +456,6 @@ function printContractFromHistory(tenantId) {
   document.getElementById('contract-output').innerHTML = htmlContent;
   openModal('modal-print-contract');
   
-  // 💡 แก้ไข: ใช้ cloneNode ป้องกันคำสั่งพิมพ์ค้างซ้อนทับกัน
   const printBtn = document.querySelector('#modal-print-contract .btn-success');
   if (printBtn) {
     const newBtn = printBtn.cloneNode(true);
@@ -449,16 +482,29 @@ function openPaymentModal(type, targetId, totalAmount, titleText) {
   // คำนวณค่าปรับอัตโนมัติ (เฉพาะบิลรายเดือน)
   if (type === 'monthly') {
     if (lateGroup) lateGroup.style.display = 'block';
-    const d = dayOfMonth();
-    if (d > CFG.DUE_DAY) {
-      const daysLate = d - CFG.DUE_DAY;
-      autoLateAmt = daysLate * CFG.LATE_PER_DAY;
-      if (document.getElementById('pay-bill-late-hint')) {
-        document.getElementById('pay-bill-late-hint').textContent = `เกินกำหนด ${daysLate} วัน`;
-      }
-    } else {
-      if (document.getElementById('pay-bill-late-hint')) {
-        document.getElementById('pay-bill-late-hint').textContent = `ยังไม่เกินกำหนด`;
+    
+    let unpaidBillMk = null;
+    for (const [k, b] of Object.entries(STATE.bills)) {
+      if (b.roomId === targetId && !b.paid) { unpaidBillMk = b.month; break; }
+    }
+
+    if (unpaidBillMk) {
+      const [y, m] = unpaidBillMk.split('-').map(Number);
+      const dueDate = new Date(y, m, CFG.DUE_DAY);
+      const today = new Date();
+      const dueTime = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate()).getTime();
+      const todayTime = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+
+      if (todayTime > dueTime) {
+        const daysLate = Math.floor((todayTime - dueTime) / (1000 * 60 * 60 * 24));
+        autoLateAmt = daysLate * CFG.LATE_PER_DAY;
+        if (document.getElementById('pay-bill-late-hint')) {
+          document.getElementById('pay-bill-late-hint').textContent = `เกินกำหนด ${daysLate} วัน`;
+        }
+      } else {
+        if (document.getElementById('pay-bill-late-hint')) {
+          document.getElementById('pay-bill-late-hint').textContent = `ยังไม่เกินกำหนด`;
+        }
       }
     }
   } else {
@@ -497,12 +543,16 @@ async function processPaymentConfirm() {
   closeModal('modal-pay-bill');
   
   if (type === 'monthly') {
-    const mk = monthKey(), key = `${targetId}-${mk}`;
+    let targetKey = null;
+    for (const [k, b] of Object.entries(STATE.bills)) {
+      if (b.roomId === targetId && !b.paid) { targetKey = k; break; }
+    }
+    const key = targetKey || `${targetId}-${monthKey()}`; 
+
     if (STATE.bills[key]) {
       STATE.bills[key].paid = true; 
       STATE.bills[key].paidDate = isoDate();
       
-      // อัปเดตยอดบิลให้รวมค่าปรับเข้าไปด้วย (ถ้ามี)
       if (lateAmt > 0) {
         STATE.bills[key].lateAmt = lateAmt;
         STATE.bills[key].total += lateAmt;
@@ -515,22 +565,22 @@ async function processPaymentConfirm() {
       if (STATE.currentPage === 'report' && typeof renderReport === 'function') renderReport();
     }
   } else if (type === 'initial') {
-    // ── บันทึกบิลแรกเข้าลงระบบเพื่อไปคำนวณภาษี ──
     const t = STATE.allTenants.find(x => x.id === targetId);
     if (t) {
       const mk = monthKey();
-      const key = `${t.roomId}-${mk}`;
+      // 💡 เปลี่ยนคำต่อท้ายเป็น -IN (รวม 10 ตัวอักษร) เพื่อไม่ให้เกินโควต้า VARCHAR(10) ในฐานข้อมูล
+      const initMk = `${mk}-IN`; 
+      const key = `${t.roomId}-${initMk}`;
       
-      // บันทึกโครงสร้างบิลแรกเข้าลงฐานข้อมูล
       STATE.bills[key] = {
         roomId: t.roomId,
-        month: mk,
+        month: initMk,
         elecOld: 0, elecNew: 0, elecUnits: 0, elecAmt: 0,
         waterOld: 0, waterNew: 0, waterUnits: 0, waterAmt: 0,
         lateDays: 0, lateAmt: 0,
         isNew: true,
-        depositAmt: CFG.DEPOSIT, // เงินประกัน
-        advanceAmt: CFG.RENT,    // ค่าเช่าล่วงหน้า
+        depositAmt: CFG.DEPOSIT,
+        advanceAmt: CFG.RENT,
         total: CFG.RENT + CFG.DEPOSIT,
         paid: true,
         paidDate: isoDate(),
@@ -596,7 +646,6 @@ function executePrintInitialReceiptHTML(tenantId, receivedAmt) {
   document.getElementById('contract-output').innerHTML = htmlContent; 
   openModal('modal-print-contract');
   
-  // 💡 แก้ไข: ใช้ cloneNode ป้องกันคำสั่งพิมพ์ค้างซ้อนทับกัน
   const printBtn = document.querySelector('#modal-print-contract .btn-success');
   if (printBtn) {
     const newBtn = printBtn.cloneNode(true);
@@ -651,9 +700,22 @@ function calcBill({ elecOld, elecNew, waterOld, waterNew, lateDays = 0, isNew = 
 
 function getRoomStatus(roomId) {
   const tenant = STATE.tenants[roomId]; if (!tenant || !tenant.active) return 'vacant';
-  const mk = monthKey(), bill = STATE.bills[`${roomId}-${mk}`]; if (!bill) return 'occupied';
-  if (bill.paid) return 'occupied';
-  const d = dayOfMonth(); if (d > CFG.CUT_DAY) return 'overdue'; if (d > CFG.DUE_DAY) return 'warning';
+  
+  let unpaidBill = null;
+  for (const k in STATE.bills) {
+    if (STATE.bills[k].roomId === roomId && !STATE.bills[k].paid) { unpaidBill = STATE.bills[k]; break; }
+  }
+  
+  if (!unpaidBill) return 'occupied';
+
+  const [y, m] = unpaidBill.month.split('-').map(Number);
+  const dueDate = new Date(y, m, CFG.DUE_DAY);
+  const cutDate = new Date(y, m, CFG.CUT_DAY);
+  const today = new Date();
+  const todayTime = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+
+  if (todayTime > cutDate.getTime()) return 'overdue';
+  if (todayTime > dueDate.getTime()) return 'warning';
   return 'occupied';
 }
 function getRoomStatusLabel(s) { return { occupied: 'ปกติ', vacant: 'ว่าง', overdue: 'ค้างชำระ', warning: 'เกินกำหนด' }[s] || s; }

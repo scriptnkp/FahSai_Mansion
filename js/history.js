@@ -20,7 +20,8 @@ function renderHistory() {
 
   const filtered = rows.filter(({roomId, mk, bill, tenant}) => {
     if (room   && roomId !== room) return false;
-    if (month  && mk !== month) return false;
+    // 💡 เปลี่ยนมาใช้ startsWith เพื่อให้ครอบคลุมทั้งบิลปกติ และบิลแรกเข้า (-init)
+    if (month && !mk.startsWith(month)) return false; 
     if (status === 'paid'    && !bill.paid) return false;
     if (status === 'pending' && bill.paid) return false;
     if (search && !roomId.includes(search) && !(tenant.name||'').toLowerCase().includes(search)) return false;
@@ -59,7 +60,11 @@ function populateHistoryFilters() {
   }
   const ms = document.getElementById('hist-month-filter');
   const months = new Set();
-  Object.keys(STATE.bills).forEach(k => { const m = k.split('-').slice(1).join('-'); if(m) months.add(m); });
+  Object.keys(STATE.bills).forEach(k => { 
+    // 💡 บังคับตัดเอาแค่ปี-เดือน (YYYY-MM) เท่านั้น ไม่เอาคำว่า -init มาโชว์ใน Dropdown
+    const m = k.split('-').slice(1, 3).join('-'); 
+    if(m) months.add(m); 
+  });
   const sorted = [...months].sort().reverse();
   if (ms) ms.innerHTML = '<option value="">ทุกเดือน</option>' + sorted.map(m => `<option value="${m}">${thaiMonth(m)}</option>`).join('');
 }
@@ -238,10 +243,9 @@ function viewBillDetail(roomId, mk) {
   document.getElementById('contract-output').innerHTML = html; 
   openModal('modal-print-contract');
   
-  // 💡 ผูกคำสั่งให้ปุ่มพิมพ์สีเขียวทำงาน
+  // 💡 ผูกคำสั่งให้ปุ่มพิมพ์สีเขียวทำงาน ป้องกันเหตุการณ์คำสั่งทับซ้อน
   const printBtn = document.querySelector('#modal-print-contract .btn-success');
   if (printBtn) {
-    // ต้องใช้วิธี clone ป้องกันการผูก event ซ้ำซ้อนเวลากดหลายๆ ครั้ง
     const newBtn = printBtn.cloneNode(true);
     printBtn.parentNode.replaceChild(newBtn, printBtn);
     
