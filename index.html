@@ -118,8 +118,6 @@
                 </div>
               </div>
               
-              <!-- ลบส่วนค่าปรับและประเภทผู้เช่าออกไปแล้วตามคำขอ -->
-              
             </div>
           </div>
 
@@ -215,6 +213,12 @@
               <div class="config-row"><label>ค่าปรับต่อวัน (บาท)</label><input type="number" class="form-control" id="cfg-late" value="100"></div>
               <div class="config-row"><label>วันครบกำหนดชำระ</label><input type="number" class="form-control" id="cfg-due-day" value="5"></div>
               <div class="config-row"><label>วันตัดน้ำ-ไฟ</label><input type="number" class="form-control" id="cfg-cut-day" value="10"></div>
+              
+              <div class="config-row"><label>เงินประกันแรกเข้า (บาท)</label><input type="number" class="form-control" id="cfg-deposit" value="5000"></div>
+              <div class="config-row">
+                <label style="line-height:1.2;">ค่าลดหย่อนภาษี (บาท)<br><span style="font-size:11px;color:var(--gray-400);font-weight:normal;">* ใช้ประเมิน ภ.ง.ด. 90</span></label>
+                <input type="number" class="form-control" id="cfg-tax-deduction" value="60000">
+              </div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn btn-primary" onclick="saveSettings()">💾 บันทึกการตั้งค่า</button></div>
           </div>
@@ -279,7 +283,6 @@
         <div style="font-size:13px; color:var(--gray-400);">จำนวนเงินที่ต้องชำระทั้งสิ้น (บาท)</div>
       </div>
 
-      <!-- เพิ่มช่องกรอกค่าปรับล่าช้า -->
       <div id="pay-bill-late-group" class="form-group" style="margin-bottom:16px; text-align:left; display:none;">
         <label class="form-label" style="font-weight:700; color:var(--red)">
           ⚠️ เพิ่มค่าปรับชำระล่าช้า (บาท) - <span id="pay-bill-late-hint" style="font-weight:normal;"></span>
@@ -304,7 +307,6 @@
   </div>
 </div>
 
-<!-- Popup ประเมินภาษี -->
 <div class="modal-overlay" id="modal-tax-report">
   <div class="modal" style="max-width: 500px;">
     <div class="modal-header">
@@ -312,8 +314,7 @@
       <button class="modal-close" data-close-modal="modal-tax-report">✕</button>
     </div>
     <div class="modal-body" id="tax-report-body">
-      <!-- ข้อมูลจะถูกสร้างจาก JavaScript -->
-    </div>
+      </div>
   </div>
 </div>
 
@@ -365,6 +366,10 @@ function loadSettings() {
   document.getElementById('cfg-due-day').value   = CFG.DUE_DAY;
   document.getElementById('cfg-cut-day').value   = CFG.CUT_DAY;
   
+  // 💡 โหลดค่าที่เซฟไว้ลงในช่อง
+  if (document.getElementById('cfg-deposit')) document.getElementById('cfg-deposit').value = localStorage.getItem('cfg_deposit') || 5000;
+  if (document.getElementById('cfg-tax-deduction')) document.getElementById('cfg-tax-deduction').value = localStorage.getItem('cfg_tax_deduction') || 60000;
+
   document.getElementById('add-tenant-rep').value = localStorage.getItem('default_rep_name') || '';
   document.getElementById('add-tenant-place').value = localStorage.getItem('default_place') || 'ฟ้าใสแมนชั่น';
 }
@@ -380,6 +385,11 @@ function saveSettings() {
   localStorage.setItem('cfg_late', document.getElementById('cfg-late').value);
   localStorage.setItem('cfg_due_day', document.getElementById('cfg-due-day').value);
   localStorage.setItem('cfg_cut_day', document.getElementById('cfg-cut-day').value);
+  
+  // 💡 เซฟค่าในช่องลงหน่วยความจำ
+  if (document.getElementById('cfg-deposit')) localStorage.setItem('cfg_deposit', document.getElementById('cfg-deposit').value);
+  if (document.getElementById('cfg-tax-deduction')) localStorage.setItem('cfg_tax_deduction', document.getElementById('cfg-tax-deduction').value);
+
   toast('บันทึกการตั้งค่าแล้ว ระบบจะโหลดใหม่ใน 2 วินาที...', 'success');
   setTimeout(() => { location.reload(); }, 2000);
 }

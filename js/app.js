@@ -27,7 +27,11 @@ const CFG = {
   ROOMS: roomData.allRooms,
   ROOMS_TEXT: savedRoomsText,
   RENT: parseFloat(localStorage.getItem('cfg_rent')) || 3500,
-  DEPOSIT: 5000,
+  
+  // 💡 ปลดล็อกค่าฟิกซ์เงินประกัน และ ค่าลดหย่อนภาษี ให้ดึงจากตั้งค่า
+  DEPOSIT: parseFloat(localStorage.getItem('cfg_deposit')) || 5000, 
+  TAX_DEDUCTION: parseFloat(localStorage.getItem('cfg_tax_deduction')) || 60000,
+
   WATER_RATE: parseFloat(localStorage.getItem('cfg_water')) || 18,
   WATER_MIN: parseFloat(localStorage.getItem('cfg_water_min')) || 100,
   ELEC_RATE: parseFloat(localStorage.getItem('cfg_elec')) || 8,
@@ -74,7 +78,16 @@ async function loadSupabaseData() {
       if(typeof renderTenantHistory === 'function') renderTenantHistory(); 
     }
 
-    const { data: billsData, error: errB } = await supabaseClient.from('bills').select('*');
+    // 💡 คำนวณหาปีปัจจุบันและปีที่แล้ว เพื่อกรองข้อมูลไม่ให้โหลดหนักเกินไป
+    const currentYear = new Date().getFullYear();
+    const lastYear = currentYear - 1;
+
+    // สั่งให้ Supabase ค้นหาเฉพาะบิลที่มีคีย์ขึ้นต้นด้วยปีปัจจุบัน หรือ ปีที่แล้วเท่านั้น
+    const { data: billsData, error: errB } = await supabaseClient
+      .from('bills')
+      .select('*')
+      .or(`month_key.like.${currentYear}-%,month_key.like.${lastYear}-%`);
+      
     if(errB) throw errB;
     
     STATE.bills = {};
@@ -121,6 +134,7 @@ async function saveState() {
     }
 
     const billsPayload = Object.entries(STATE.bills).map(([key, b]) => {
+      // ดึง b.roomId และ b.month ตรงๆ เพื่อไม่ให้คำว่า -IN ถูกตัดทิ้ง
       return {
         room_id: b.roomId, 
         month_key: b.month, 
@@ -136,6 +150,7 @@ async function saveState() {
     }
   } catch (e) { 
     console.error("Sync Error:", e);
+    // แจ้งเตือนแถบสีแดงให้ผู้ใช้รู้ทันที ถ้าฐานข้อมูลไม่ยอมรับ
     toast(`❌ บันทึกฐานข้อมูลไม่สำเร็จ: ${e.message || 'โปรดตรวจสอบการเชื่อมต่อ'}`, "error", 5000);
   }
 }
@@ -270,6 +285,7 @@ function printHidden(htmlContent, title = 'พิมพ์เอกสาร') {
   }, 1000);
 }
 
+// 💡 เพิ่ม Try...Catch และการล้างแคช Storage
 async function submitAddTenantAndContract() {
   const roomId = document.getElementById('add-tenant-room').value, prefix = document.getElementById('add-tenant-prefix').value;
   const name = document.getElementById('add-tenant-name').value.trim(), phone = document.getElementById('add-tenant-phone').value.trim();
@@ -293,6 +309,7 @@ async function submitAddTenantAndContract() {
     const newId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 15);
     const newTenant = { id: newId, roomId, prefix, name, phone, idNum, moveIn, active: true, idCardImage: idCardRes.url, tenantImage: tenantRes.url };
     
+    // เคลียร์แคชรูปเก่าทิ้งก่อน เพื่อป้องกัน LocalStorage เต็ม (QuotaExceededError)
     Object.keys(localStorage).forEach(k => {
       if (k.startsWith('img_id_') || k.startsWith('img_photo_')) {
         localStorage.removeItem(k);
@@ -568,7 +585,7 @@ async function processPaymentConfirm() {
     const t = STATE.allTenants.find(x => x.id === targetId);
     if (t) {
       const mk = monthKey();
-      // 💡 เปลี่ยนคำต่อท้ายเป็น -IN (รวม 10 ตัวอักษร) เพื่อไม่ให้เกินโควต้า VARCHAR(10) ในฐานข้อมูล
+      // คำต่อท้ายเป็น -IN (รวม 10 ตัวอักษร) เพื่อไม่ให้เกินโควต้า VARCHAR(10)
       const initMk = `${mk}-IN`; 
       const key = `${t.roomId}-${initMk}`;
       

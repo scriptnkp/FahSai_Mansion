@@ -11,7 +11,10 @@ function renderReport() {
 function populateMonthSelect() {
   const sel = document.getElementById('report-month-select');
   const months = new Set([monthKey()]);
-  Object.keys(STATE.bills).forEach(k => { const m = k.split('-').slice(1).join('-'); if(m) months.add(m); });
+  Object.keys(STATE.bills).forEach(k => { 
+    const m = k.split('-').slice(1, 3).join('-'); 
+    if(m) months.add(m); 
+  });
   for (let i = 0; i < 6; i++) {
     const d = new Date();
     d.setMonth(d.getMonth() - i);
@@ -29,11 +32,11 @@ function buildReport(mk) {
   const rows = [];
   let totalBilled = 0, totalPaid = 0, totalPending = 0;
   let countPaid = 0, countPending = 0;
-  const roomSet = new Set(); // ใช้ Setเพื่อนับจำนวนห้องไม่ให้ซ้ำกัน
+  const roomSet = new Set(); // ใช้ Set เพื่อนับจำนวนห้องไม่ให้ซ้ำกัน
 
-  // 💡 เปลี่ยนมาลูปหาบิลทั้งหมดแทน เพื่อให้เจอบิลแรกเข้า (-init) ที่ซ่อนอยู่
+  // ลูปหาบิลทั้งหมด เพื่อให้เจอบิลแรกเข้า (-IN) ที่ซ่อนอยู่ด้วย
   Object.values(STATE.bills).forEach(bill => {
-    if (bill.month.startsWith(mk)) { // ดึงทั้งบิลปกติและบิล -init
+    if (bill.month.startsWith(mk)) { 
       const r = bill.roomId;
       const tenant = STATE.tenants[r];
       
@@ -77,6 +80,7 @@ function buildReport(mk) {
           <td class="text-right"><strong>${fmt(bill.total)}</strong></td>
           <td>
             <span class="badge badge-${bill.paid ? 'success' : 'danger'}">${bill.paid ? '✅ ชำระแล้ว' : '⏳ ค้างชำระ'}</span>
+            ${!bill.paid ? `<button class="btn btn-success btn-sm" style="margin-top:4px" onclick="markPaid('${roomId}')">รับเงิน</button>` : ''}
           </td>
         </tr>
       `;
@@ -117,17 +121,19 @@ async function sendReportTelegram() {
   const mk = document.getElementById('report-month-select').value;
   let total = 0, paid = 0, pending = 0, paidCount = 0, pendCount = 0;
   
-  CFG.ROOMS.forEach(r => {
-    const bill = STATE.bills[`${r}-${mk}`];
-    if (!bill) return;
-    total += bill.total;
-    if (bill.paid) { paid += bill.total; paidCount++; }
-    else { pending += bill.total; pendCount++; }
+  const roomSet = new Set();
+  Object.values(STATE.bills).forEach(bill => {
+    if (bill.month.startsWith(mk)) {
+      roomSet.add(bill.roomId);
+      total += bill.total;
+      if (bill.paid) { paid += bill.total; paidCount++; }
+      else { pending += bill.total; pendCount++; }
+    }
   });
   
   const msg = `📊 <b>${CFG.MANSION_NAME}</b>\nสรุปรายงานประจำเดือน ${thaiMonth(mk)}\n\n` +
-    `✅ ชำระแล้ว: <b>${paidCount} ห้อง</b> — ${fmt(paid)} บาท\n` +
-    `⏳ ยังไม่ชำระ: <b>${pendCount} ห้อง</b> — ${fmt(pending)} บาท\n` +
+    `✅ ชำระแล้ว: <b>${paidCount} บิล</b> — ${fmt(paid)} บาท\n` +
+    `⏳ ยังไม่ชำระ: <b>${pendCount} บิล</b> — ${fmt(pending)} บาท\n` +
     `💰 รวมยอดทั้งหมด: <b>${fmt(total)} บาท</b>`;
     
   await sendTelegram(msg);
@@ -140,21 +146,25 @@ function openTaxReportModal() {
   document.getElementById('tax-year-label').textContent = year;
 
   let totalIncome = 0;
-  let taxableIncome = 0;
+  let taxableIncome = 0; // ยอดที่นำไปคำนวณภาษี (ไม่รวมเงินประกัน)
 
   Object.values(STATE.bills).forEach(bill => {
     if (bill.paid && bill.month.startsWith(year)) {
       totalIncome += bill.total;
+      
+      // ถ้าเป็นบิลแรกเข้า ให้หักเงินประกันออก เพราะไม่ต้องนำไปเสียภาษี
       const deposit = bill.isNew ? (bill.depositAmt || CFG.DEPOSIT) : 0;
       taxableIncome += (bill.total - deposit);
     }
   });
 
+  // หักค่าใช้จ่ายเหมา 30% และลดหย่อนส่วนตัว (ดึงค่าจาก CFG)
   const expense = taxableIncome * 0.30; 
-  const deduction = 60000; 
+  const deduction = CFG.TAX_DEDUCTION; 
   let netIncome = taxableIncome - expense - deduction;
   if (netIncome < 0) netIncome = 0;
 
+  // คำนวณภาษีขั้นบันได
   let tax = 0;
   let remaining = netIncome;
 
@@ -177,10 +187,9 @@ function openTaxReportModal() {
     </table>
     <div style="font-size:12px; color:var(--gray-400); margin-top:16px; text-align:center; line-height: 1.4;">
       * ข้อมูลนี้เป็นการประเมินภาษีเงินได้บุคคลธรรมดาเบื้องต้น (ภ.ง.ด. 90)<br>
-      อ้างอิงจากการหักค่าใช้จ่ายเหมา 30% และค่าลดหย่อนส่วนตัว 60,000 บาท
+      อ้างอิงจากการหักค่าใช้จ่ายเหมา 30% และค่าลดหย่อนส่วนตัว ${fmtInt(CFG.TAX_DEDUCTION)} บาท
     </div>
     
-    <!-- 💡 เพิ่มปุ่มปริ้นท์รายงานแยกเดือน -->
     <div style="margin-top: 24px; text-align: center;">
       <button class="btn btn-primary" style="width:100%" onclick="printYearlyTaxReport('${year}')">🖨 พิมพ์รายงานสรุปรายปี (PDF)</button>
     </div>
@@ -189,15 +198,15 @@ function openTaxReportModal() {
   openModal('modal-tax-report');
 }
 
-// ── ฟังก์ชันสร้างรายงาน PDF แยกเดือน (อัปเดตแก้นับห้องซ้ำ) ──
+// ── ฟังก์ชันสร้างรายงาน PDF แยกเดือน ──
 function printYearlyTaxReport(year) {
   const LOGO_URL = 'https://raw.githubusercontent.com/scriptnkp/FahSai_Mansion/main/Logo.png';
   
-  // 💡 แก้ไข: ใช้ Set() เพื่อเก็บเลขห้อง มันจะไม่นับเลขห้องที่ซ้ำกัน
+  // ใช้ Set() เพื่อเก็บเลขห้อง มันจะไม่นับเลขห้องที่ซ้ำกัน
   const monthsData = Array.from({length: 12}, () => ({ rooms: new Set(), rent: 0, elec: 0, water: 0, late: 0, total: 0 }));
   let grandTotal = 0;
 
-  // 1. จัดกลุ่มข้อมูลบิลตามเดือน
+  // จัดกลุ่มข้อมูลบิลตามเดือน
   Object.values(STATE.bills).forEach(b => {
     if (b.paid && b.month.startsWith(year)) {
       const mIndex = parseInt(b.month.split('-')[1]) - 1; // หา index เดือน (0-11)
@@ -208,7 +217,7 @@ function printYearlyTaxReport(year) {
          const late = b.lateAmt || 0;
          const taxable = rent + elec + water + late; // รวมเฉพาะรายได้ ไม่เอาเงินมัดจำ
 
-         // 💡 เอาเลขห้องใส่เข้าไปใน Set ถ้าเลขห้องซ้ำ มันจะนับแค่ 1
+         // เอาเลขห้องใส่เข้าไปใน Set ถ้าเลขห้องซ้ำ มันจะนับแค่ 1
          monthsData[mIndex].rooms.add(b.roomId); 
          
          monthsData[mIndex].rent += rent;
@@ -222,9 +231,9 @@ function printYearlyTaxReport(year) {
     }
   });
 
-  // 2. คำนวณภาษีบุคคลธรรมดา (ภ.ง.ด. 90)
+  // คำนวณภาษีบุคคลธรรมดา (ภ.ง.ด. 90) ดึงค่าลดหย่อนจากตั้งค่า
   const expense = grandTotal * 0.30; 
-  const deduction = 60000; 
+  const deduction = CFG.TAX_DEDUCTION; 
   let netIncome = grandTotal - expense - deduction;
   if (netIncome < 0) netIncome = 0;
 
@@ -239,7 +248,7 @@ function printYearlyTaxReport(year) {
   if (remaining > 300000)  { tax += (remaining - 300000) * 0.10; remaining = 300000; }
   if (remaining > 150000)  { tax += (remaining - 150000) * 0.05; remaining = 150000; }
 
-  // 3. วาดตารางรายเดือน
+  // วาดตารางรายเดือน
   const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
   let tbody = '';
   
@@ -248,7 +257,8 @@ function printYearlyTaxReport(year) {
         tbody += `
           <tr>
             <td class="text-center">${thaiMonths[i]}</td>
-            <td class="text-center">${d.rooms.size}</td> <td class="text-right">${fmt(d.rent)}</td>
+            <td class="text-center">${d.rooms.size}</td>
+            <td class="text-right">${fmt(d.rent)}</td>
             <td class="text-right">${fmt(d.elec)}</td>
             <td class="text-right">${fmt(d.water)}</td>
             <td class="text-right">${fmt(d.late)}</td>
@@ -262,7 +272,7 @@ function printYearlyTaxReport(year) {
       tbody = `<tr><td colspan="7" class="text-center" style="padding:20px;">ไม่มีข้อมูลรายรับในปีนี้</td></tr>`;
   }
 
-  // 4. วาดโครงสร้างเอกสาร PDF
+  // วาดโครงสร้างเอกสาร PDF
   const html = `
     <div style="display:flex; align-items:center; border-bottom:2px solid #2563eb; padding-bottom:12px; margin-bottom:16px; font-family:'Sarabun', sans-serif;">
       <img src="${LOGO_URL}" alt="Logo" style="width:100px; height:auto; object-fit:contain; margin-right:15px;" onerror="this.style.display='none'">
@@ -324,7 +334,7 @@ function printYearlyTaxReport(year) {
     </div>
     <div style="font-size:12px; color:#64748b; margin-top:10px; text-align:center; line-height: 1.4; font-family:'Sarabun', sans-serif;">
       * ข้อมูลนี้เป็นการประเมินภาษีเงินได้บุคคลธรรมดาเบื้องต้น (ภ.ง.ด. 90)<br>
-      อ้างอิงจากการหักค่าใช้จ่ายเหมา 30% และค่าลดหย่อนส่วนตัว 60,000 บาท
+      อ้างอิงจากการหักค่าใช้จ่ายเหมา 30% และค่าลดหย่อนส่วนตัว ${fmtInt(CFG.TAX_DEDUCTION)} บาท
     </div>
     
     <div style="margin-top: 40px; text-align: right; font-size: 13px; font-family:'Sarabun', sans-serif;">
